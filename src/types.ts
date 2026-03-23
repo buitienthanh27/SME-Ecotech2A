@@ -8,9 +8,16 @@ export interface ProjectCostItem {
   notes: string;
 }
 
-export interface ProjectMemberAssignment {
+export interface ProjectMember {
+  id: string;
   employeeId: string;
-  role: 'PM' | 'Developer' | 'Tester' | 'Other';
+  projectId: string;
+  role: string;
+  allocation: number; // % distribution
+  startDate: string;
+  endDate: string;
+  status: 'Active' | 'Inactive';
+  inactiveReason?: string;
 }
 
 export interface Project {
@@ -25,10 +32,13 @@ export interface Project {
   description: string;
   status: ProjectStatus;
   pmId: string; // The PM who created it
-  members: ProjectMemberAssignment[];
+  members: ProjectMember[];
   costPlan: ProjectCostItem[];
   rejectionNote?: string;
   createdAt: string;
+  sprints?: Sprint[];
+  tasks?: Task[];
+  workSchedules?: WorkShift[];
   // Existing fields for compatibility if needed, but we'll use the new ones
   revenue?: number;
   expenses?: number;
@@ -121,6 +131,22 @@ export interface Task {
   commentCount: number;
   isReviewedToday?: boolean;
   assigneeId?: string;
+  startingPercent?: number;
+  startDate?: string;
+}
+
+export type ShiftType = 'Sáng' | 'Chiều' | 'OT';
+
+export interface WorkShift {
+  id: string;
+  projectId: string;
+  employeeId: string;
+  taskId: string;
+  date: string;
+  type: ShiftType;
+  efficiency: number;
+  isProductive: boolean;
+  notes?: string;
 }
 
 export interface TaskAssignee {
@@ -145,12 +171,6 @@ export interface SubstitutionLog {
   timestamp: string;
 }
 
-export interface ProjectMember {
-  id: string;
-  name: string;
-  role: string;
-  avatar?: string;
-}
 
 export interface DailyProgressLog {
   id: string;

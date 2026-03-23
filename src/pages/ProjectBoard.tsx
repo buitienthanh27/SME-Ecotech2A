@@ -20,8 +20,14 @@ import {
   Activity,
   X,
   Send,
-  UserPlus
+  UserPlus,
+  List,
+  Grid3X3,
+  TrendingUp,
+  TrendingDown
 } from 'lucide-react';
+import { format, parseISO, addDays, getDay } from 'date-fns';
+import { vi } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
 import { realtimeService } from '../services/RealtimeService';
 import { 
@@ -31,6 +37,7 @@ import {
   TaskPriority, 
   TaskType, 
   ProjectMember,
+  Employee,
   DailyProgressLog,
   SubstitutionLog
 } from '../types';
@@ -60,143 +67,15 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 
 import { TaskCreateModal } from '../components/project/TaskCreateModal';
+import { PersonnelAddModal } from '../components/project/PersonnelAddModal';
+import { SprintManagementModal } from '../components/project/SprintManagementModal';
+import { useStore } from '../store/useStore';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Mock Data
-const MOCK_MEMBERS: ProjectMember[] = [
-  { id: 'emp-1', name: 'Nguyễn Văn An', role: 'Frontend Dev', avatar: 'VA' },
-  { id: 'emp-2', name: 'Trần Thị Bình', role: 'Backend Dev', avatar: 'TB' },
-  { id: 'emp-3', name: 'Lê Văn Châu', role: 'Mobile Dev', avatar: 'VC' },
-  { id: 'emp-4', name: 'Phạm Văn Dũng', role: 'DevOps', avatar: 'VD' },
-];
-
-const MOCK_SPRINTS: Sprint[] = [
-  { 
-    id: 'spr-1', 
-    projectId: 'prj-001', 
-    name: 'Sprint 1', 
-    sprintNo: 1, 
-    startDate: '2026-03-01', 
-    endDate: '2026-03-14', 
-    status: 'Completed', 
-    goal: 'Xây dựng khung ứng dụng và module quản lý nhân sự.' 
-  },
-  { 
-    id: 'spr-2', 
-    projectId: 'prj-001', 
-    name: 'Sprint 2', 
-    sprintNo: 2, 
-    startDate: '2026-03-15', 
-    endDate: '2026-03-28', 
-    status: 'Active', 
-    goal: 'Hoàn thiện module quản lý dự án và tích hợp realtime.' 
-  },
-];
-
-const MOCK_TASKS: Task[] = [
-  { 
-    id: 'task-1', 
-    sprintId: 'spr-2', 
-    title: 'Thiết kế màn hình Dashboard', 
-    description: 'Thiết kế UI/UX cho màn hình tổng quan tài chính và dự án.', 
-    priority: 'Cao', 
-    type: 'Feature', 
-    status: 'In Progress', 
-    estimatedHours: 16, 
-    actualHours: 10, 
-    completionPercent: 65, 
-    dueDate: '2026-03-22', 
-    position: 1, 
-    commentCount: 3,
-    assigneeId: 'emp-1',
-    isReviewedToday: true
-  },
-  { 
-    id: 'task-2', 
-    sprintId: 'spr-2', 
-    title: 'Build API quản lý dự án', 
-    description: 'Xây dựng các endpoint CRUD cho dự án, sprint và task.', 
-    priority: 'Cao', 
-    type: 'Feature', 
-    status: 'In Progress', 
-    estimatedHours: 24, 
-    actualHours: 12, 
-    completionPercent: 40, 
-    dueDate: '2026-03-25', 
-    position: 2, 
-    commentCount: 1,
-    assigneeId: 'emp-2',
-    clonedFromTaskId: 'task-old-2'
-  },
-  { 
-    id: 'task-3', 
-    sprintId: 'spr-2', 
-    title: 'Fix lỗi phân quyền role', 
-    description: 'Sửa lỗi không hiển thị đúng menu cho role Lead.', 
-    priority: 'Trung bình', 
-    type: 'Bug', 
-    status: 'In Review', 
-    estimatedHours: 4, 
-    actualHours: 5, 
-    completionPercent: 90, 
-    dueDate: '2026-03-19', 
-    position: 1, 
-    commentCount: 0,
-    assigneeId: 'emp-3'
-  },
-  { 
-    id: 'task-4', 
-    sprintId: 'spr-2', 
-    title: 'Viết unit test module lương', 
-    description: 'Đảm bảo logic tính lương và thuế hoạt động chính xác.', 
-    priority: 'Thấp', 
-    type: 'Task', 
-    status: 'Backlog', 
-    estimatedHours: 8, 
-    actualHours: 0, 
-    completionPercent: 0, 
-    dueDate: '2026-03-26', 
-    position: 1, 
-    commentCount: 2,
-    assigneeId: 'emp-1'
-  },
-  { 
-    id: 'task-5', 
-    sprintId: 'spr-2', 
-    title: 'Deploy staging environment', 
-    description: 'Thiết lập CI/CD và deploy lên môi trường staging.', 
-    priority: 'Cao', 
-    type: 'Task', 
-    status: 'Backlog', 
-    estimatedHours: 6, 
-    actualHours: 0, 
-    completionPercent: 0, 
-    dueDate: '2026-03-24', 
-    position: 2, 
-    commentCount: 0,
-    assigneeId: 'emp-2'
-  },
-  { 
-    id: 'task-6', 
-    sprintId: 'spr-2', 
-    title: 'Tài liệu API Swagger', 
-    description: 'Cập nhật tài liệu API đầy đủ cho frontend team.', 
-    priority: 'Thấp', 
-    type: 'Research', 
-    status: 'Done', 
-    estimatedHours: 4, 
-    actualHours: 4, 
-    completionPercent: 100, 
-    dueDate: '2026-03-18', 
-    position: 1, 
-    commentCount: 1,
-    assigneeId: 'emp-3',
-    isReviewedToday: true
-  },
-];
+// Project Board Component
 
 const COLUMNS: { id: TaskStatus; title: string; color: string }[] = [
   { id: 'Backlog', title: 'Backlog', color: 'bg-gray-100 text-gray-700' },
@@ -208,16 +87,36 @@ const COLUMNS: { id: TaskStatus; title: string; color: string }[] = [
 export function ProjectBoard() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [activeSprintId, setActiveSprintId] = useState('spr-2');
-  const [tasks, setTasks] = useState<Task[]>(MOCK_TASKS);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isSubstitutionOpen, setIsSubstitutionOpen] = useState(false);
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
+  const [isSprintManagementOpen, setIsSprintManagementOpen] = useState(false);
   const [isLive, setIsLive] = useState(true);
   const [pulse, setPulse] = useState(false);
+  const [activeTab, setActiveTab] = useState<'kanban' | 'personnel' | 'schedule'>('kanban');
+  const [isAddPersonnelOpen, setIsAddPersonnelOpen] = useState(false);
+  const [inactivatingMember, setInactivatingMember] = useState<{ id: string; name: string } | null>(null);
+  const [inactiveReason, setInactiveReason] = useState('');
+
+  const { projects, employees, updateProject } = useStore();
+  const project = projects.find(p => p.id === id || p.id === '1'); 
+  const projectMembers = project?.members || [];
+  const projectSprints = project?.sprints || [];
+  const projectTasks = project?.tasks || [];
+
+  // Local state for activeSprintId only
+  const [activeSprintId, setActiveSprintId] = useState('');
+
+  // Initialize active sprint if not set
+  useEffect(() => {
+    if (!activeSprintId && projectSprints.length > 0) {
+      const current = projectSprints.find(s => s.status === 'Active') || projectSprints[0];
+      setActiveSprintId(current.id);
+    }
+  }, [projectSprints, activeSprintId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -230,8 +129,8 @@ export function ProjectBoard() {
     })
   );
 
-  const activeSprint = MOCK_SPRINTS.find(s => s.id === activeSprintId);
-  const sprintTasks = tasks.filter(t => t.sprintId === activeSprintId);
+  const activeSprint = projectSprints.find(s => s.id === activeSprintId);
+  const sprintTasks = projectTasks.filter(t => t.sprintId === activeSprintId);
 
   const stats = useMemo(() => {
     const total = sprintTasks.length;
@@ -244,30 +143,43 @@ export function ProjectBoard() {
 
   useEffect(() => {
     const handleStatusChange = (data: any) => {
-      setTasks(prev => prev.map(t => t.id === data.taskId ? { ...t, status: data.newStatus } : t));
+      if (!project) return;
+      const updatedTasks = projectTasks.map((t: Task) => 
+        t.id === data.taskId ? { ...t, status: data.newStatus } : t
+      );
+      updateProject(project.id, { tasks: updatedTasks });
       setPulse(true);
       setTimeout(() => setPulse(false), 1000);
     };
 
     const handleProgressLogged = (data: any) => {
-      setTasks(prev => prev.map(t => t.id === data.taskId ? { 
+      if (!project) return;
+      const updatedTasks = projectTasks.map((t: Task) => t.id === data.taskId ? { 
         ...t, 
         completionPercent: data.progressPercent, 
         actualHours: t.actualHours + data.hoursWorked,
         isReviewedToday: true
-      } : t));
+      } : t);
+      updateProject(project.id, { tasks: updatedTasks });
       setPulse(true);
       setTimeout(() => setPulse(false), 1000);
     };
 
+    const handleNewTask = (task: Task) => {
+      if (!project) return;
+      updateProject(project.id, { tasks: [...projectTasks, task] });
+    };
+
     realtimeService.on('task.status_changed', handleStatusChange);
     realtimeService.on('task.progress_logged', handleProgressLogged);
+    realtimeService.on('task.created', handleNewTask);
 
     return () => {
       realtimeService.off('task.status_changed', handleStatusChange);
       realtimeService.off('task.progress_logged', handleProgressLogged);
+      realtimeService.off('task.created', handleNewTask);
     };
-  }, []);
+  }, [project, projectTasks, updateProject]);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -275,29 +187,35 @@ export function ProjectBoard() {
 
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    if (!over) return;
+    if (!over || !project) return;
 
-    const activeId = active.id as string;
-    const overId = over.id as string;
+    const activeIdVal = active.id as string;
+    const overIdVal = over.id as string;
 
-    const activeTask = tasks.find(t => t.id === activeId);
-    if (!activeTask) return;
+    const activeTaskDrag = projectTasks.find(t => t.id === activeIdVal);
+    if (!activeTaskDrag) return;
 
     // If dropping over a column
-    const isOverAColumn = COLUMNS.some(col => col.id === overId);
+    const isOverAColumn = COLUMNS.some(col => col.id === overIdVal);
     
     if (isOverAColumn) {
-      const newStatus = overId as TaskStatus;
-      if (activeTask.status !== newStatus) {
-        setTasks(prev => prev.map(t => t.id === activeId ? { ...t, status: newStatus } : t));
+      const newStatus = overIdVal as TaskStatus;
+      if (activeTaskDrag.status !== newStatus) {
+        const updatedTasks = projectTasks.map(t => 
+          t.id === activeIdVal ? { ...t, status: newStatus } : t
+        );
+        updateProject(project.id, { tasks: updatedTasks });
       }
       return;
     }
 
     // If dropping over another task
-    const overTask = tasks.find(t => t.id === overId);
-    if (overTask && activeTask.status !== overTask.status) {
-      setTasks(prev => prev.map(t => t.id === activeId ? { ...t, status: overTask.status } : t));
+    const overTaskDrag = projectTasks.find(t => t.id === overIdVal);
+    if (overTaskDrag && activeTaskDrag.status !== overTaskDrag.status) {
+      const updatedTasks = projectTasks.map(t => 
+        t.id === activeIdVal ? { ...t, status: overTaskDrag.status } : t
+      );
+      updateProject(project.id, { tasks: updatedTasks });
     }
   };
 
@@ -305,37 +223,52 @@ export function ProjectBoard() {
     const { active, over } = event;
     setActiveId(null);
 
-    if (!over) return;
+    if (!over || !project) return;
 
-    const activeId = active.id as string;
-    const overId = over.id as string;
+    const activeIdVal = active.id as string;
+    const overIdVal = over.id as string;
 
-    const activeTask = tasks.find(t => t.id === activeId);
-    if (!activeTask) return;
+    const activeTaskDragEnd = projectTasks.find(t => t.id === activeIdVal);
+    if (!activeTaskDragEnd) return;
 
     // Determine final status
-    let finalStatus = activeTask.status;
-    const isOverAColumn = COLUMNS.some(col => col.id === overId);
+    let finalStatus = activeTaskDragEnd.status;
+    const isOverAColumn = COLUMNS.some(col => col.id === overIdVal);
     if (isOverAColumn) {
-      finalStatus = overId as TaskStatus;
+      finalStatus = overIdVal as TaskStatus;
     } else {
-      const overTask = tasks.find(t => t.id === overId);
-      if (overTask) finalStatus = overTask.status;
+      const overTaskDragEnd = projectTasks.find(t => t.id === overIdVal);
+      if (overTaskDragEnd) finalStatus = overTaskDragEnd.status;
     }
 
-    // Trigger realtime event if status changed
-    const originalTask = MOCK_TASKS.find(t => t.id === activeId);
-    if (originalTask && originalTask.status !== finalStatus) {
-      realtimeService.simulateEvent('task.status_changed', {
-        taskId: activeId,
-        newStatus: finalStatus,
-        userName: 'Bạn'
-      });
+    // Update positions if same category, or status change
+    const oldIndex = projectTasks.indexOf(activeTaskDragEnd);
+    let updatedTasks = [...projectTasks];
+    
+    if (activeTaskDragEnd.status !== finalStatus) {
+       updatedTasks = projectTasks.map(t => t.id === activeIdVal ? { ...t, status: finalStatus } : t);
+       realtimeService.simulateEvent('task.status_changed', {
+         taskId: activeIdVal,
+         newStatus: finalStatus,
+         userName: 'Bạn'
+       });
     }
+
+    // Handle position move
+    const overTaskForMove = projectTasks.find(t => t.id === overIdVal);
+    if (overTaskForMove) {
+      const newIndex = projectTasks.indexOf(overTaskForMove);
+      updatedTasks = arrayMove(updatedTasks, oldIndex, newIndex);
+    }
+    
+    updateProject(project.id, { tasks: updatedTasks });
   };
 
   const handleCreateTask = (newTask: Task) => {
-    setTasks(prev => [...prev, newTask]);
+    if (!project) return;
+    updateProject(project.id, {
+      tasks: [...(project.tasks || []), newTask]
+    });
     realtimeService.simulateEvent('task.created', {
       taskId: newTask.id,
       title: newTask.title,
@@ -343,7 +276,98 @@ export function ProjectBoard() {
     });
   };
 
-  const activeTask = activeId ? tasks.find(t => t.id === activeId) : null;
+  const handleUpdateSprints = (newSprints: Sprint[]) => {
+    if (!project) return;
+    updateProject(project.id, {
+      sprints: newSprints
+    });
+  };
+
+  const activeTask = activeId ? projectTasks.find(t => t.id === activeId) : null;
+
+  const handleAddMember = (newMember: ProjectMember) => {
+    if (!project) return;
+    updateProject(project.id, {
+      members: [...project.members, newMember]
+    });
+  };
+
+  const handleToggleMemberStatus = (memberId: string, currentStatus: 'Active' | 'Inactive') => {
+    if (!project) return;
+    const member = project.members.find(m => m.id === memberId);
+    if (!member) return;
+
+    if (currentStatus === 'Active') {
+      // Check if holding ANY tasks
+      const assignedTasks = projectTasks.filter(t => t.assigneeId === member.employeeId);
+      if (assignedTasks.length > 0) {
+        alert('Không thể chuyển Inactive nhân sự đang giữ task. Vui lòng gỡ hoặc thay thế nhân sự này khỏi toàn bộ task trước.');
+        return;
+      }
+
+      setInactivatingMember({ id: memberId, name: employees.find(e => e.id === member.employeeId)?.name || 'Nhân viên' });
+    } else {
+      // Simple reactivate
+      updateProject(project.id, {
+        members: project.members.map(m => m.id === memberId ? { ...m, status: 'Active' as const } : m)
+      });
+    }
+  };
+
+  const confirmInactivate = () => {
+    if (!project || !inactivatingMember || !inactiveReason) return;
+    updateProject(project.id, {
+      members: project.members.map(m => m.id === inactivatingMember.id ? { 
+        ...m, 
+        status: 'Inactive' as const, 
+        inactiveReason 
+      } : m)
+    });
+    setInactivatingMember(null);
+    setInactiveReason('');
+  };
+
+  const projectPersonnel = useMemo(() => {
+    const totalProjectTasks = projectTasks.length;
+    // Total potential progress points is totalTasks * 100
+    const totalPotentialProgress = totalProjectTasks * 100;
+    
+    return projectMembers.map(m => {
+      const emp = employees.find(e => e.id === m.employeeId);
+      const memberTasks = projectTasks.filter(t => t.assigneeId === m.employeeId);
+      const memberTasksCount = memberTasks.length;
+      
+      // Calculate work contribution (total progress points contributed)
+      const contributedProgress = memberTasks.reduce((acc, t) => {
+        return acc + (t.completionPercent - (t.startingPercent || 0));
+      }, 0);
+
+      // We also find tasks cloned from this person to get their previous work
+      const previousContributions = projectTasks
+        .filter(t => t.clonedFromTaskId)
+        .map(t => {
+           const original = projectTasks.find(ot => ot.id === t.clonedFromTaskId);
+           return original?.assigneeId === m.employeeId ? t.startingPercent || 0 : 0;
+        })
+        .reduce((acc, val) => acc + val, 0);
+
+      const totalContribution = contributedProgress + previousContributions;
+      const contributionPercent = totalPotentialProgress > 0 
+        ? Math.round((totalContribution / totalPotentialProgress) * 100) 
+        : 0;
+
+      const calculatedAllocation = totalProjectTasks > 0 
+        ? Math.round((memberTasksCount / totalProjectTasks) * 100) 
+        : 0;
+        
+      return { 
+        ...m, 
+        employee: emp, 
+        allocation: calculatedAllocation,
+        contribution: contributionPercent
+      };
+    });
+  }, [projectMembers, projectTasks, employees]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -357,7 +381,7 @@ export function ProjectBoard() {
                 value={activeSprintId}
                 onChange={(e) => setActiveSprintId(e.target.value)}
               >
-                {MOCK_SPRINTS.map(s => (
+                {projectSprints.map(s => (
                   <option key={s.id} value={s.id}>{s.name} — {s.startDate} → {s.endDate}</option>
                 ))}
               </select>
@@ -374,9 +398,16 @@ export function ProjectBoard() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsSprintManagementOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-[#003366] hover:bg-gray-50 transition-all"
+            >
+              <Calendar className="w-4 h-4" />
+              Quản lý Sprint
+            </button>
             <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all">
               <FileText className="w-4 h-4" />
-              Sprint Report
+              Báo cáo
             </button>
             <button 
               onClick={() => setIsReviewOpen(true)}
@@ -433,14 +464,54 @@ export function ProjectBoard() {
                 <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mục tiêu Sprint</span>
               </div>
-              <p className="text-xs font-medium text-gray-600 italic">"{activeSprint?.goal}"</p>
-            </div>
+                <p className="text-xs font-medium text-gray-600 italic">"{activeSprint?.goal}"</p>
+              </div>
           </div>
         </div>
       </div>
 
-      {/* Kanban Board */}
-      <DndContext
+      {/* Tab Switcher */}
+        <div className="mt-8 flex items-center gap-1 bg-gray-50 p-1.5 rounded-2xl w-fit border border-gray-100">
+          <button 
+            onClick={() => setActiveTab('kanban')}
+            className={cn(
+              "flex items-center gap-3 px-6 py-2.5 rounded-xl text-sm font-black transition-all",
+              activeTab === 'kanban' 
+                ? "bg-white text-[#003366] shadow-sm shadow-[#003366]/5" 
+                : "text-gray-400 hover:text-gray-600 hover:bg-white/50"
+            )}
+          >
+            <LayoutGrid className="w-4 h-4" />
+            Bảng Kanban
+          </button>
+            <button 
+              onClick={() => setActiveTab('personnel')}
+              className={cn(
+                "flex items-center gap-3 px-6 py-2.5 rounded-xl text-sm font-black transition-all",
+                activeTab === 'personnel' 
+                  ? "bg-white text-[#003366] shadow-sm shadow-[#003366]/5" 
+                  : "text-gray-400 hover:text-gray-600 hover:bg-white/50"
+              )}
+            >
+              <Users className="w-4 h-4" />
+              Nhân sự
+            </button>
+            <button 
+              onClick={() => setActiveTab('schedule')}
+              className={cn(
+                "flex items-center gap-3 px-6 py-2.5 rounded-xl text-sm font-black transition-all",
+                activeTab === 'schedule' 
+                  ? "bg-white text-[#003366] shadow-sm shadow-[#003366]/5" 
+                  : "text-gray-400 hover:text-gray-600 hover:bg-white/50"
+              )}
+            >
+              <Calendar className="w-4 h-4" />
+              Lịch làm việc
+            </button>
+          </div>
+
+      {activeTab === 'kanban' ? (
+        <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
@@ -453,7 +524,8 @@ export function ProjectBoard() {
               key={col.id} 
               column={col} 
               tasks={sprintTasks.filter(t => t.status === col.id)}
-              onTaskClick={(task) => {
+              employees={employees}
+              onTaskClick={(task: any) => {
                 setSelectedTask(task);
                 setIsDetailOpen(true);
               }}
@@ -472,11 +544,111 @@ export function ProjectBoard() {
         }}>
           {activeTask ? (
             <div className="w-[300px] rotate-3 scale-105 transition-transform">
-              <TaskCard task={activeTask} onClick={() => {}} isOverlay />
+              <TaskCard task={activeTask} onClick={() => {}} employees={employees} isOverlay />
             </div>
           ) : null}
         </DragOverlay>
       </DndContext>
+      ) : activeTab === 'personnel' ? (
+        <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4">
+          <div className="p-8 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Danh sách nhân sự</h3>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{projectPersonnel.length} thành viên tham gia</p>
+            </div>
+            <button 
+              onClick={() => setIsAddPersonnelOpen(true)}
+              className="flex items-center gap-2 bg-[#003366] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#002244] transition-all shadow-lg shadow-[#003366]/20"
+            >
+              <UserPlus className="w-4 h-4" />
+              Thêm nhân sự
+            </button>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50/50">
+                  <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Họ tên & Vai trò</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Phòng ban</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">% Allocation</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">% Contribution</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Thời gian</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Trạng thái</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {projectPersonnel.map((m) => (
+                  <tr key={m.id} className={cn("group hover:bg-gray-50/50 transition-all", m.status === 'Inactive' && "opacity-60")}>
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-black text-[#003366] border border-gray-100 uppercase">
+                          {m.employee?.name.charAt(0) || '?'}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-900">{m.employee?.name}</p>
+                          <p className="text-[10px] font-black text-[#FF6600] uppercase tracking-widest">{m.role}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5">
+                      <p className="text-xs font-bold text-gray-600 text-center">{m.employee?.department}</p>
+                    </td>
+                    <td className="px-8 py-5 text-center">
+                      <div className="inline-flex flex-col items-center">
+                        <span className="text-sm font-black text-gray-900">{m.allocation}%</span>
+                        <div className="w-16 h-1 bg-gray-100 rounded-full mt-1 overflow-hidden">
+                          <div className="h-full bg-[#003366]" style={{ width: `${m.allocation}%` }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5 text-center">
+                      <div className="inline-flex flex-col items-center">
+                        <span className="text-sm font-black text-[#FF6600]">{m.contribution}%</span>
+                        <div className="w-16 h-1 bg-gray-100 rounded-full mt-1 overflow-hidden">
+                          <div className="h-full bg-[#FF6600]" style={{ width: `${m.contribution}%` }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-[10px] font-bold text-gray-400">{m.startDate}</span>
+                        <ArrowRightLeft className="w-3 h-3 text-gray-300 rotate-90" />
+                        <span className="text-[10px] font-bold text-gray-400">{m.endDate}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5 text-center">
+                      <button 
+                        onClick={() => handleToggleMemberStatus(m.id, m.status)}
+                        className={cn(
+                          "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all",
+                          m.status === 'Active' 
+                            ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200" 
+                            : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                        )}
+                      >
+                        {m.status}
+                      </button>
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <button className="p-2 text-gray-300 hover:text-gray-900 hover:bg-white rounded-xl transition-all opacity-0 group-hover:opacity-100">
+                        <MoreVertical className="w-5 h-5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <WorkScheduleTab 
+          schedules={project?.workSchedules || []}
+          tasks={projectTasks}
+          employees={employees}
+        />
+      )}
 
       {/* Task Detail Sheet */}
       <TaskDetailSheet 
@@ -484,10 +656,13 @@ export function ProjectBoard() {
         onClose={() => setIsDetailOpen(false)}
         task={selectedTask}
         onUpdate={(updatedTask) => {
-          setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+          if (!project) return;
+          const updatedTasks = projectTasks.map(t => t.id === updatedTask.id ? updatedTask : t);
+          updateProject(project.id, { tasks: updatedTasks });
           setSelectedTask(updatedTask);
         }}
         onSubstitution={() => setIsSubstitutionOpen(true)}
+        employees={employees}
       />
 
       {/* Daily Review Panel */}
@@ -495,7 +670,8 @@ export function ProjectBoard() {
         isOpen={isReviewOpen}
         onClose={() => setIsReviewOpen(false)}
         tasks={sprintTasks}
-        onSave={(logs) => {
+        employees={employees}
+        onSave={(logs: any) => {
           // In a real app, we'd send logs to backend
           logs.forEach(log => {
             realtimeService.simulateEvent('task.progress_logged', {
@@ -513,9 +689,10 @@ export function ProjectBoard() {
         isOpen={isSubstitutionOpen}
         onClose={() => setIsSubstitutionOpen(false)}
         task={selectedTask}
-        onConfirm={(newAssigneeId, reason) => {
-          if (!selectedTask) return;
-          // Logic for substitution
+        employees={employees}
+        onConfirm={(newAssigneeId: string, reason: string) => {
+          if (!selectedTask || !project) return;
+          // Logic for immediate substitution
           const oldTask = { ...selectedTask, status: 'Closed' as TaskStatus };
           const newTask: Task = {
             ...selectedTask,
@@ -523,19 +700,21 @@ export function ProjectBoard() {
             title: `[Tiếp nối] ${selectedTask.title}`,
             assigneeId: newAssigneeId,
             clonedFromTaskId: selectedTask.id,
+            startingPercent: selectedTask.completionPercent,
             actualHours: 0,
             commentCount: 0,
             isReviewedToday: false
           };
-          setTasks(prev => [...prev.map(t => t.id === oldTask.id ? oldTask : t), newTask]);
+          const updatedTasks = [...projectTasks.map(t => t.id === oldTask.id ? oldTask : t), newTask];
+          updateProject(project.id, { tasks: updatedTasks });
           setIsSubstitutionOpen(false);
           setIsDetailOpen(false);
-          // Simulate realtime
+          // Realtime notify
           realtimeService.simulateEvent('task.staff_changed', {
             taskId: selectedTask.id,
             newTaskId: newTask.id,
-            oldAssignee: MOCK_MEMBERS.find(m => m.id === selectedTask.assigneeId)?.name,
-            newAssignee: MOCK_MEMBERS.find(m => m.id === newAssigneeId)?.name
+            oldAssignee: employees.find(e => e.id === selectedTask.assigneeId)?.name,
+            newAssignee: employees.find(e => e.id === newAssigneeId)?.name
           });
         }}
       />
@@ -548,15 +727,99 @@ export function ProjectBoard() {
             onClose={() => setIsCreateTaskOpen(false)}
             onCreate={handleCreateTask}
             sprintId={activeSprintId}
-            members={MOCK_MEMBERS}
+            members={projectMembers.filter(m => m.status === 'Active').map(m => {
+              const emp = employees.find(e => e.id === m.employeeId);
+              return {
+                id: m.employeeId,
+                name: emp?.name || 'N/A',
+                role: m.role,
+                avatar: emp?.name.charAt(0) || '?'
+              };
+            })}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Project Personnel Add Modal */}
+      <AnimatePresence>
+        {isAddPersonnelOpen && (
+          <PersonnelAddModal 
+            isOpen={isAddPersonnelOpen}
+            onClose={() => setIsAddPersonnelOpen(false)}
+            projectId={project?.id || ''}
+            onAdd={handleAddMember}
+          />
+        )}
+      </AnimatePresence>
+
+      <SprintManagementModal 
+        isOpen={isSprintManagementOpen}
+        onClose={() => setIsSprintManagementOpen(false)}
+        sprints={projectSprints}
+        onUpdate={handleUpdateSprints}
+        projectId={project?.id || ''}
+      />
+
+      {/* Confirmation for Inactivation */}
+      <AnimatePresence>
+        {inactivatingMember && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
+              onClick={() => setInactivatingMember(null)} 
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-8"
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 bg-red-100 rounded-2xl text-red-600">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-black text-gray-900 uppercase">Xác nhận</h3>
+              </div>
+              
+              <p className="text-sm text-gray-600 mb-6">
+                Bạn đang chuyển trạng thái nhân sự <span className="font-bold text-gray-900">{inactivatingMember.name}</span> sang <span className="font-bold text-red-600">Inactive</span>.
+                Vui lòng nhập lý do để tiếp tục.
+              </p>
+
+              <textarea 
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm min-h-[100px] focus:outline-none focus:ring-2 focus:ring-red-600/20 mb-6"
+                placeholder="Nhập lý do chuyển Inactive..."
+                value={inactiveReason}
+                onChange={(e) => setInactiveReason(e.target.value)}
+              />
+
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setInactivatingMember(null)}
+                  className="flex-1 py-4 bg-gray-50 text-gray-500 rounded-2xl text-xs font-black uppercase tracking-widest"
+                >
+                  Hủy
+                </button>
+                <button 
+                  onClick={confirmInactivate}
+                  disabled={!inactiveReason}
+                  className="flex-1 py-4 bg-red-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-red-600/20 disabled:opacity-50"
+                >
+                  Xác nhận
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>
   );
 }
 
-function BoardColumn({ column, tasks, onTaskClick }: any) {
+function BoardColumn({ column, tasks, onTaskClick, employees }: any) {
   const { setNodeRef } = useSortable({
     id: column.id,
     data: {
@@ -579,6 +842,7 @@ function BoardColumn({ column, tasks, onTaskClick }: any) {
               key={task.id} 
               task={task} 
               onClick={() => onTaskClick(task)}
+              employees={employees}
             />
           ))}
         </SortableContext>
@@ -587,7 +851,7 @@ function BoardColumn({ column, tasks, onTaskClick }: any) {
   );
 }
 
-function TaskCard({ task, onClick, isOverlay }: { task: Task; onClick: () => void; isOverlay?: boolean; key?: React.Key }) {
+function TaskCard({ task, onClick, isOverlay, employees }: { task: Task; onClick: () => void; isOverlay?: boolean; key?: React.Key; employees: Employee[] }) {
   const {
     setNodeRef,
     attributes,
@@ -609,7 +873,7 @@ function TaskCard({ task, onClick, isOverlay }: { task: Task; onClick: () => voi
     transform: CSS.Translate.toString(transform),
   };
 
-  const assignee = MOCK_MEMBERS.find(m => m.id === task.assigneeId);
+  const assignee = employees.find(e => e.id === task.assigneeId);
   const isOverdue = new Date(task.dueDate) < new Date() && task.status !== 'Done';
 
   const priorityColors = {
@@ -671,7 +935,7 @@ function TaskCard({ task, onClick, isOverlay }: { task: Task; onClick: () => voi
         <div className="flex items-center gap-2">
           <div className="relative">
             <div className="w-7 h-7 bg-[#003366] rounded-full flex items-center justify-center text-[10px] font-bold text-white">
-              {assignee?.avatar}
+              {assignee?.name.charAt(0) || '?'}
             </div>
             {task.clonedFromTaskId && (
               <div className="absolute -right-1 -bottom-1 w-3.5 h-3.5 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100">
@@ -694,10 +958,18 @@ function TaskCard({ task, onClick, isOverlay }: { task: Task; onClick: () => voi
           </span>
           <span className="text-gray-900">{task.completionPercent}%</span>
         </div>
-        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden flex">
+          {task.startingPercent && task.startingPercent > 0 && (
+            <div 
+              className="h-full bg-gray-300" 
+              style={{ width: `${task.startingPercent}%` }}
+              title={`Người trước: ${task.startingPercent}%`}
+            ></div>
+          )}
           <div 
             className="h-full bg-[#FF6600] transition-all duration-500" 
-            style={{ width: `${task.completionPercent}%` }}
+            style={{ width: `${task.completionPercent - (task.startingPercent || 0)}%` }}
+            title={`Hiện tại: ${task.completionPercent - (task.startingPercent || 0)}%`}
           ></div>
         </div>
       </div>
@@ -727,7 +999,7 @@ function TaskCard({ task, onClick, isOverlay }: { task: Task; onClick: () => voi
 
 // Sub-components (simplified for initial implementation)
 
-function TaskDetailSheet({ isOpen, onClose, task, onUpdate, onSubstitution }: any) {
+function TaskDetailSheet({ isOpen, onClose, task, onUpdate, onSubstitution, employees }: any) {
   if (!task) return null;
 
   return (
@@ -801,11 +1073,11 @@ function TaskDetailSheet({ isOpen, onClose, task, onUpdate, onSubstitution }: an
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-[#003366] rounded-full flex items-center justify-center text-sm font-bold text-white">
-                        {MOCK_MEMBERS.find(m => m.id === task.assigneeId)?.avatar}
+                        {employees.find(e => e.id === task.assigneeId)?.name.charAt(0) || '?'}
                       </div>
                       <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Người thực hiện</p>
-                        <p className="text-sm font-bold text-gray-900">{MOCK_MEMBERS.find(m => m.id === task.assigneeId)?.name}</p>
+                        <p className="text-sm font-bold text-gray-900">{employees.find(e => e.id === task.assigneeId)?.name || 'N/A'}</p>
                       </div>
                     </div>
                     <button 
@@ -817,17 +1089,39 @@ function TaskDetailSheet({ isOpen, onClose, task, onUpdate, onSubstitution }: an
                     </button>
                   </div>
 
-                  <div className="space-y-3">
+                   <div className="space-y-3">
                     <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest">
-                      <span className="text-gray-400">Tiến độ công việc</span>
-                      <span className="text-[#FF6600]">{task.completionPercent}%</span>
+                      <span className="text-gray-400">Phân bổ tiến độ</span>
+                      <span className="text-[#FF6600]">{task.completionPercent}% Tổng</span>
                     </div>
-                    <div className="w-full h-2 bg-white rounded-full overflow-hidden border border-gray-100">
+                    <div className="w-full h-3 bg-white rounded-full overflow-hidden border border-gray-100 flex">
+                      {task.startingPercent && task.startingPercent > 0 && (
+                        <div 
+                          className="h-full bg-gray-200 transition-all duration-500 relative group" 
+                          style={{ width: `${task.startingPercent}%` }}
+                          title="Tiến độ người cũ"
+                        >
+                          <span className="absolute inset-0 flex items-center justify-center text-[8px] text-gray-400 font-black">
+                            {task.startingPercent}%
+                          </span>
+                        </div>
+                      )}
                       <div 
-                        className="h-full bg-[#FF6600] transition-all duration-500" 
-                        style={{ width: `${task.completionPercent}%` }}
-                      ></div>
+                        className="h-full bg-[#FF6600] transition-all duration-500 relative" 
+                        style={{ width: `${task.completionPercent - (task.startingPercent || 0)}%` }}
+                        title="Tiến độ người mới"
+                      >
+                         <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white font-black">
+                            {task.completionPercent - (task.startingPercent || 0)}%
+                          </span>
+                      </div>
                     </div>
+                    {task.startingPercent && task.startingPercent > 0 && (
+                      <div className="flex justify-between items-center text-[10px] font-bold">
+                        <span className="text-gray-400">Người cũ: {task.startingPercent}%</span>
+                        <span className="text-[#FF6600]">Người mới: {task.completionPercent - task.startingPercent}%</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -899,7 +1193,7 @@ function CommentItem({ name, text, time, avatar }: any) {
   );
 }
 
-function DailyReviewPanel({ isOpen, onClose, tasks, onSave }: any) {
+function DailyReviewPanel({ isOpen, onClose, tasks, onSave, employees }: any) {
   const [logs, setLogs] = useState<any[]>([]);
 
   useEffect(() => {
@@ -907,7 +1201,7 @@ function DailyReviewPanel({ isOpen, onClose, tasks, onSave }: any) {
       setLogs(tasks.filter((t: any) => t.status !== 'Done' && t.status !== 'Closed').map((t: any) => ({
         taskId: t.id,
         title: t.title,
-        assigneeName: MOCK_MEMBERS.find(m => m.id === t.assigneeId)?.name,
+        assigneeName: employees.find((e: any) => e.id === t.assigneeId)?.name || 'N/A',
         hoursWorked: 0,
         progressPercent: t.completionPercent,
         rating: 0,
@@ -1049,13 +1343,13 @@ function DailyReviewPanel({ isOpen, onClose, tasks, onSave }: any) {
   );
 }
 
-function SubstitutionDialog({ isOpen, onClose, task, onConfirm }: any) {
+function SubstitutionDialog({ isOpen, onClose, task, onConfirm, employees }: any) {
   const [newAssigneeId, setNewAssigneeId] = useState('');
   const [reason, setReason] = useState('');
 
   if (!isOpen || !task) return null;
 
-  const currentAssignee = MOCK_MEMBERS.find(m => m.id === task.assigneeId);
+  const currentAssignee = employees.find((e: any) => e.id === task.assigneeId);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
@@ -1091,9 +1385,9 @@ function SubstitutionDialog({ isOpen, onClose, task, onConfirm }: any) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 bg-[#003366] rounded-full flex items-center justify-center text-[8px] font-bold text-white">
-                  {currentAssignee?.avatar}
+                  {currentAssignee?.name.charAt(0) || '?'}
                 </div>
-                <span className="text-xs font-bold text-gray-600">{currentAssignee?.name}</span>
+                <span className="text-xs font-bold text-gray-600">{currentAssignee?.name || 'N/A'}</span>
               </div>
               <span className="text-xs font-black text-[#FF6600]">{task.completionPercent}% hoàn thành</span>
             </div>
@@ -1107,8 +1401,8 @@ function SubstitutionDialog({ isOpen, onClose, task, onConfirm }: any) {
               onChange={(e) => setNewAssigneeId(e.target.value)}
             >
               <option value="">-- Chọn nhân viên --</option>
-              {MOCK_MEMBERS.filter(m => m.id !== task.assigneeId).map(m => (
-                <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
+              {employees.filter(e => e.id !== task.assigneeId).map(e => (
+                <option key={e.id} value={e.id}>{e.name} ({e.department})</option>
               ))}
             </select>
           </div>
@@ -1138,7 +1432,7 @@ function SubstitutionDialog({ isOpen, onClose, task, onConfirm }: any) {
               disabled={!newAssigneeId || !reason}
               className="flex-1 py-4 bg-[#003366] text-white rounded-2xl text-sm font-black uppercase tracking-widest shadow-lg shadow-[#003366]/20 hover:bg-[#002244] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Gửi phê duyệt
+              Xác nhận thay thế
             </button>
           </div>
         </div>
@@ -1146,3 +1440,368 @@ function SubstitutionDialog({ isOpen, onClose, task, onConfirm }: any) {
     </div>
   );
 }
+
+// --- Work Schedule Components ---
+
+function WorkScheduleTab({ schedules, tasks, employees }: { schedules: any[], tasks: Task[], employees: Employee[] }) {
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [selectedEmpId, setSelectedEmpId] = useState<string>('all');
+
+  const derivedSchedules = useMemo(() => {
+    const result: any[] = [];
+    
+    // Generate planned shifts from tasks
+    tasks.forEach(task => {
+      if (!task.startDate || !task.dueDate || !task.assigneeId) return;
+      if (task.status === 'Closed') return; // Optionally skip closed tasks
+
+      let current = parseISO(task.startDate);
+      const end = parseISO(task.dueDate);
+      
+      while (current <= end) {
+        const dayOfWeek = getDay(current); // 0=Sun, 1=Mon, ..., 6=Sat
+        const dateStr = format(current, 'yyyy-MM-dd');
+        
+        // Find if there's logged actual data for this day/task
+        const existingMorningLog = schedules.find(s => s.taskId === task.id && s.date === dateStr && s.type === 'Sáng');
+        const existingAfternoonLog = schedules.find(s => s.taskId === task.id && s.date === dateStr && s.type === 'Chiều');
+        
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+          result.push({
+            id: existingMorningLog?.id || `${task.id}-${dateStr}-Sáng`,
+            taskId: task.id,
+            employeeId: task.assigneeId,
+            date: dateStr,
+            type: 'Sáng',
+            efficiency: existingMorningLog?.efficiency || 100,
+            isProductive: existingMorningLog ? existingMorningLog.isProductive : true,
+            notes: existingMorningLog?.notes || 'Kế hoạch',
+            isPlanned: !existingMorningLog
+          });
+          result.push({
+            id: existingAfternoonLog?.id || `${task.id}-${dateStr}-Chiều`,
+            taskId: task.id,
+            employeeId: task.assigneeId,
+            date: dateStr,
+            type: 'Chiều',
+            efficiency: existingAfternoonLog?.efficiency || 100,
+            isProductive: existingAfternoonLog ? existingAfternoonLog.isProductive : true,
+            notes: existingAfternoonLog?.notes || 'Kế hoạch',
+            isPlanned: !existingAfternoonLog
+          });
+        } else if (dayOfWeek === 6) {
+          result.push({
+            id: existingMorningLog?.id || `${task.id}-${dateStr}-Sáng`,
+            taskId: task.id,
+            employeeId: task.assigneeId,
+            date: dateStr,
+            type: 'Sáng',
+            efficiency: existingMorningLog?.efficiency || 100,
+            isProductive: existingMorningLog ? existingMorningLog.isProductive : true,
+            notes: existingMorningLog?.notes || 'Kế hoạch',
+            isPlanned: !existingMorningLog
+          });
+        }
+        current = addDays(current, 1);
+      }
+    });
+
+    // Add standalone OT shifts
+    schedules.filter(s => s.type === 'OT').forEach(ot => {
+      result.push({ ...ot, id: ot.id || `ot-${Date.now()}`, isPlanned: false });
+    });
+
+    return result.sort((a, b) => a.date.localeCompare(b.date));
+  }, [tasks, schedules]);
+
+  const filteredSchedules = useMemo(() => {
+    if (selectedEmpId === 'all') return derivedSchedules;
+    return derivedSchedules.filter(s => s.employeeId === selectedEmpId);
+  }, [derivedSchedules, selectedEmpId]);
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100">
+          <button 
+            onClick={() => setViewMode('list')}
+            className={cn(
+              "px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2",
+              viewMode === 'list' ? "bg-white text-[#003366] shadow-sm" : "text-gray-400 hover:text-gray-600"
+            )}
+          >
+            <List className="w-4 h-4" />
+            Danh sách
+          </button>
+          <button 
+            onClick={() => setViewMode('calendar')}
+            className={cn(
+              "px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2",
+              viewMode === 'calendar' ? "bg-white text-[#003366] shadow-sm" : "text-gray-400 hover:text-gray-600"
+            )}
+          >
+            <Grid3X3 className="w-4 h-4" />
+            Bảng biểu
+          </button>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <select 
+            value={selectedEmpId}
+            onChange={e => setSelectedEmpId(e.target.value)}
+            className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-bold bg-gray-50 text-gray-700 outline-none focus:ring-2 focus:ring-[#003366]/20"
+          >
+            <option value="all">Tất cả nhân viên</option>
+            {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+          <div className="hidden md:flex items-center gap-4 border-l border-gray-200 pl-4">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Đạt</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-amber-500"></span>
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Không đạt</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-gray-200 border border-gray-300 border-dashed"></span>
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Kế hoạch</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {viewMode === 'list' ? (
+        <ScheduleListView schedules={filteredSchedules} employees={employees} tasks={tasks} />
+      ) : (
+        <ScheduleCalendarView schedules={filteredSchedules} employees={employees} />
+      )}
+    </div>
+  );
+}
+
+function ScheduleListView({ schedules, employees, tasks }: any) {
+  if (schedules.length === 0) {
+    return (
+      <div className="bg-white p-12 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col items-center justify-center text-center">
+        <Calendar className="w-12 h-12 text-gray-200 mb-4" />
+        <h4 className="text-lg font-black text-gray-900 mb-2">Không có lịch làm việc</h4>
+        <p className="text-sm font-medium text-gray-500 max-w-sm">Chưa có task nào được giao trong timeline này hoặc chưa có lịch được ghi nhận.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="bg-gray-50/50">
+              <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Ngày & Ca</th>
+              <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Nhân viên</th>
+              <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Task công việc</th>
+              <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Hiệu suất</th>
+              <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Trạng thái</th>
+              <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Ghi chú</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {schedules.map((s: any) => {
+              const emp = employees.find((e: any) => e.id === s.employeeId);
+              const task = tasks.find((t: any) => t.id === s.taskId);
+              return (
+                <tr key={s.id} className="hover:bg-gray-50/50 transition-all group">
+                  <td className="px-8 py-5">
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">{format(parseISO(s.date), 'dd/MM/yyyy')}</p>
+                      <span className={cn(
+                        "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md",
+                        s.type === 'Sáng' ? "bg-blue-100 text-blue-700" :
+                        s.type === 'Chiều' ? "bg-orange-100 text-orange-700" :
+                        "bg-purple-100 text-purple-700"
+                      )}>
+                        Ca {s.type}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-8 py-5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-[#003366] text-xs uppercase shadow-sm">
+                        {emp?.name.charAt(0)}
+                      </div>
+                      <span className="text-sm font-bold text-gray-700">{emp?.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-8 py-5">
+                    <p className="text-sm font-bold text-gray-900">{task?.title || '—'}</p>
+                    <p className="text-[10px] font-medium text-gray-400 uppercase truncate max-w-[200px]">{task?.description}</p>
+                  </td>
+                  <td className="px-8 py-5 text-center">
+                    {s.isPlanned ? (
+                      <span className="text-sm font-bold text-gray-300">—</span>
+                    ) : (
+                      <div className="inline-flex flex-col items-center">
+                        <div className="flex items-center gap-1 text-sm font-black text-gray-900">
+                          {s.efficiency}%
+                          {s.efficiency >= 90 ? <TrendingUp className="w-3 h-3 text-emerald-500" /> : <TrendingDown className="w-3 h-3 text-red-500" />}
+                        </div>
+                        <div className="w-16 h-1 bg-gray-100 rounded-full mt-1 overflow-hidden">
+                          <div className={cn("h-full", s.efficiency >= 90 ? "bg-emerald-500" : "bg-amber-500")} style={{ width: `${s.efficiency}%` }} />
+                        </div>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-8 py-5 text-center">
+                    {s.isPlanned ? (
+                      <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-400 border border-gray-200 border-dashed">
+                        Kế hoạch
+                      </span>
+                    ) : (
+                      <span className={cn(
+                        "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                        s.isProductive ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                      )}>
+                        {s.isProductive ? 'Đạt' : 'Không đạt'}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-8 py-5">
+                    <p className={cn(
+                      "text-xs max-w-[150px] truncate group-hover:whitespace-normal group-hover:overflow-visible transition-all",
+                      s.isPlanned ? "text-gray-300 italic" : "text-gray-500"
+                    )}>
+                      {s.notes || '—'}
+                    </p>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ScheduleCalendarView({ schedules, employees }: any) {
+  const days = useMemo(() => {
+    if (!schedules || schedules.length === 0) return [];
+    
+    // Find min date and max date
+    const allDates = schedules.map((s: any) => s.date).sort();
+    const minDate = parseISO(allDates[0]);
+    const maxDate = parseISO(allDates[allDates.length - 1]);
+    
+    let current = minDate;
+    const result = [];
+    while (current <= maxDate) {
+      if (getDay(current) !== 0) { // Skip Sunday completely
+        result.push(format(current, 'yyyy-MM-dd'));
+      }
+      current = addDays(current, 1);
+    }
+    return result;
+  }, [schedules]);
+
+  if (days.length === 0) {
+    return (
+      <div className="bg-white p-12 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col items-center justify-center text-center">
+        <Grid3X3 className="w-12 h-12 text-gray-200 mb-4" />
+        <h4 className="text-lg font-black text-gray-900 mb-2">Chưa có lịch biểu</h4>
+        <p className="text-sm font-medium text-gray-500 max-w-sm">Timeline dự án trống hoặc bị lọc hết.</p>
+      </div>
+    );
+  }
+
+  // Group schedules by day and then by employee
+  const groupedSchedules = useMemo(() => {
+    const acc: Record<string, Record<string, any[]>> = {};
+    days.forEach(d => acc[d] = {}); // initialize all dates
+
+    schedules.forEach((s: any) => {
+      const { date, employeeId } = s;
+      if (!acc[date]) return; // ignore Sundays if any got through
+      if (!acc[date][employeeId]) {
+        acc[date][employeeId] = [];
+      }
+      acc[date][employeeId].push(s);
+    });
+    return acc;
+  }, [schedules, days]);
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+      {days.map(day => {
+        const empShifts = groupedSchedules[day] || {};
+        const activeEmployees = Object.keys(empShifts);
+
+        return (
+          <div key={day} className="bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+            {/* Header Date */}
+            <div className="bg-gray-50/50 p-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <span className="block text-xl font-black text-gray-900">{format(parseISO(day), 'dd/MM')}</span>
+                <span className="text-[10px] font-bold text-gray-400 capitalize">{format(parseISO(day), 'EEEE', { locale: vi })}</span>
+              </div>
+            </div>
+            
+            {/* Body */}
+            <div className="p-4 flex-grow flex flex-col gap-4">
+              {activeEmployees.length === 0 ? (
+                <div className="flex-grow flex flex-col items-center justify-center opacity-30 grayscale min-h-[100px]">
+                  <Calendar className="w-8 h-8 text-gray-300 mb-2" />
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Trống</span>
+                </div>
+              ) : (
+                activeEmployees.map(empId => {
+                  const emp = employees.find((e: any) => e.id === empId);
+                  const shifts = empShifts[empId].sort((a,b) => {
+                    const order = { 'Sáng': 1, 'Chiều': 2, 'OT': 3 };
+                    return (order[a.type as keyof typeof order] || 4) - (order[b.type as keyof typeof order] || 4);
+                  });
+
+                  return (
+                    <div key={empId} className="flex flex-col gap-2 p-3 bg-white rounded-2xl border border-gray-100 shadow-sm transition-shadow hover:shadow-md">
+                      {/* Employee Info */}
+                      <div className="flex items-center gap-2 pb-2 border-b border-gray-50">
+                        <div className="w-6 h-6 rounded-full bg-[#003366] text-white flex items-center justify-center font-bold text-[10px] uppercase shadow-inner">
+                          {emp?.name.charAt(0)}
+                        </div>
+                        <span className="text-xs font-black text-gray-900 line-clamp-1 flex-1" title={emp?.name}>{emp?.name}</span>
+                      </div>
+
+                      {/* Shifts */}
+                      <div className="space-y-1.5">
+                        {shifts.map(s => (
+                          <div key={s.id} className={cn(
+                            "flex items-center justify-between px-2 py-1.5 rounded-lg border text-[10px] font-bold",
+                            s.isPlanned 
+                              ? "bg-gray-50 border-gray-200 border-dashed text-gray-500"
+                              : s.isProductive 
+                                ? "bg-emerald-50 border-emerald-100 text-emerald-800"
+                                : "bg-amber-50 border-amber-100 text-amber-800"
+                          )}>
+                            <span className={cn(
+                              "uppercase tracking-wider mr-2",
+                              s.type === 'Sáng' ? "text-blue-600" :
+                              s.type === 'Chiều' ? "text-orange-600" :
+                              "text-purple-600"
+                            )}>
+                              {s.type}
+                            </span>
+                            {!s.isPlanned && <span>{s.efficiency}%</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+

@@ -40,6 +40,7 @@ export const SprintManagementModal: React.FC<Props> = ({ isOpen, onClose, sprint
     };
 
     onUpdate([...sprints, sprint]);
+    onClose();
     setNewSprint({
       name: '',
       startDate: format(new Date(), 'yyyy-MM-dd'),

@@ -38,8 +38,26 @@ export const useStore = create<StoreState>((set) => ({
       status: 'Đang thực hiện', 
       pmId: 'e1',
       members: [
-        { employeeId: 'e1', role: 'PM' },
-        { employeeId: 'e2', role: 'Developer' }
+        { 
+          id: 'm1', 
+          employeeId: 'e1', 
+          projectId: '1', 
+          role: 'PM', 
+          allocation: 50, 
+          startDate: '2026-01-01', 
+          endDate: '2026-12-31', 
+          status: 'Active' 
+        },
+        { 
+          id: 'm2', 
+          employeeId: 'e2', 
+          projectId: '1', 
+          role: 'Developer', 
+          allocation: 100, 
+          startDate: '2026-01-01', 
+          endDate: '2026-06-30', 
+          status: 'Active' 
+        }
       ],
       costPlan: [
         { id: 'cp1', category: 'Lương nhân sự', type: 'Nhân sự', plannedAmount: 800000000, notes: 'Chi phí lương cho team dev' }
@@ -48,7 +66,112 @@ export const useStore = create<StoreState>((set) => ({
       revenue: 450000, 
       expenses: 330000, 
       profit: 120000, 
-      margin: 26.7 
+      margin: 26.7,
+      sprints: [
+        { 
+          id: 'spr-1', 
+          projectId: '1', 
+          name: 'Sprint 1', 
+          sprintNo: 1, 
+          startDate: '2026-01-01', 
+          endDate: '2026-01-14', 
+          status: 'Completed', 
+          goal: 'Xây dựng khung ứng dụng và module quản lý nhân sự.' 
+        },
+        { 
+          id: 'spr-2', 
+          projectId: '1', 
+          name: 'Sprint 2', 
+          sprintNo: 2, 
+          startDate: '2026-01-15', 
+          endDate: '2026-01-28', 
+          status: 'Active', 
+          goal: 'Hoàn thiện module quản lý dự án và tích hợp realtime.' 
+        },
+      ],
+      tasks: [
+        { 
+          id: 'task-1', 
+          sprintId: 'spr-2', 
+          title: 'Thiết kế màn hình Dashboard', 
+          description: 'Thiết kế UI/UX cho màn hình tổng quan tài chính và dự án.', 
+          priority: 'Cao', 
+          type: 'Feature', 
+          status: 'In Progress', 
+          estimatedHours: 16, 
+          actualHours: 10, 
+          completionPercent: 65, 
+          dueDate: '2026-01-22', 
+          position: 1, 
+          commentCount: 3,
+          assigneeId: 'e1',
+          isReviewedToday: true,
+          startDate: '2026-01-15'
+        },
+        { 
+          id: 'task-2', 
+          sprintId: 'spr-2', 
+          title: 'Build API quản lý dự án', 
+          description: 'Xây dựng các endpoint CRUD cho dự án, sprint và task.', 
+          priority: 'Cao', 
+          type: 'Feature', 
+          status: 'In Progress', 
+          estimatedHours: 24, 
+          actualHours: 12, 
+          completionPercent: 40, 
+          dueDate: '2026-01-25', 
+          position: 2, 
+          commentCount: 1,
+          assigneeId: 'e2',
+          startDate: '2026-01-18'
+        }
+      ],
+      workSchedules: [
+        {
+          id: 'ws1',
+          projectId: '1',
+          employeeId: 'e1',
+          taskId: 'task-1',
+          date: '2026-01-18',
+          type: 'Sáng',
+          efficiency: 95,
+          isProductive: true,
+          notes: 'Hoàn thiện layout'
+        },
+        {
+          id: 'ws2',
+          projectId: '1',
+          employeeId: 'e1',
+          taskId: 'task-1',
+          date: '2026-01-18',
+          type: 'Chiều',
+          efficiency: 90,
+          isProductive: true,
+          notes: 'Review design'
+        },
+        {
+          id: 'ws3',
+          projectId: '1',
+          employeeId: 'e2',
+          taskId: 'task-2',
+          date: '2026-01-18',
+          type: 'Sáng',
+          efficiency: 85,
+          isProductive: true,
+          notes: 'Setup database schema'
+        },
+        {
+          id: 'ws4',
+          projectId: '1',
+          employeeId: 'e1',
+          taskId: 'task-1',
+          date: '2026-01-18',
+          type: 'OT',
+          efficiency: 100,
+          isProductive: true,
+          notes: 'Fixing critical bugs'
+        }
+      ]
     },
   ],
   customers: [

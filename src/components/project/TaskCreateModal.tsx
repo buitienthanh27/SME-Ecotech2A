@@ -170,11 +170,12 @@ export const TaskCreateModal: React.FC<Props> = ({ isOpen, onClose, onCreate, sp
                 <Users className="w-3 h-3" /> Người thực hiện
               </label>
               <select 
+                required
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none"
                 value={assigneeId}
                 onChange={(e) => setAssigneeId(e.target.value)}
               >
-                <option value="">Chưa phân bổ</option>
+                <option value="" disabled>-- Chọn người thực hiện --</option>
                 {members.map(m => (
                   <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
                 ))}

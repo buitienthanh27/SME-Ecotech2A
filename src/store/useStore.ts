@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import {
   Project,
   Customer,
@@ -6,7 +6,8 @@ import {
   ApprovalRequest,
   Contract,
   ProjectStatus,
-  PersonnelRequest
+  PersonnelRequest,
+  CashFlowEntry
 } from '../types';
 
 interface StoreState {
@@ -16,6 +17,7 @@ interface StoreState {
   contracts: Contract[];
   approvalRequests: ApprovalRequest[];
   personnelRequests: PersonnelRequest[];
+  cashFlowEntries: CashFlowEntry[];
   currentUser: { id: string; name: string; role: 'PM' | 'CEO' | 'Lead' | 'Employee' };
 
   // Actions
@@ -25,6 +27,7 @@ interface StoreState {
   updateApprovalRequest: (id: string, updates: Partial<ApprovalRequest>) => void;
   addPersonnelRequest: (request: PersonnelRequest) => void;
   updatePersonnelRequest: (id: string, updates: Partial<PersonnelRequest>) => void;
+  addCashFlowEntry: (entry: CashFlowEntry) => void;
   setProjects: (projects: Project[]) => void;
 }
 
@@ -73,32 +76,9 @@ export const useStore = create<StoreState>((set) => ({
       margin: 38.46,
       actualIncome: 650000000,
       actualExpense: 400000000,
-      sprints: [
-        {
-          id: 'spr-1',
-          projectId: '1',
-          name: 'Sprint 1',
-          sprintNo: 1,
-          startDate: '2026-01-01',
-          endDate: '2026-01-14',
-          status: 'Completed',
-          goal: 'Xây dựng khung ứng dụng và module quản lý nhân sự.'
-        },
-        {
-          id: 'spr-2',
-          projectId: '1',
-          name: 'Sprint 2',
-          sprintNo: 2,
-          startDate: '2026-01-15',
-          endDate: '2026-01-28',
-          status: 'Active',
-          goal: 'Hoàn thiện module quản lý dự án và tích hợp realtime.'
-        },
-      ],
       tasks: [
         {
           id: 'task-1',
-          sprintId: 'spr-2',
           title: 'Thiết kế màn hình Dashboard',
           description: 'Thiết kế UI/UX cho màn hình tổng quan tài chính và dự án.',
           priority: 'Cao',
@@ -106,17 +86,16 @@ export const useStore = create<StoreState>((set) => ({
           status: 'In Progress',
           estimatedHours: 16,
           actualHours: 10,
-          completionPercent: 65,
+          completionPercent: 25,
           dueDate: '2026-01-22',
           position: 1,
           commentCount: 3,
           assigneeId: 'e1',
-          isReviewedToday: true,
+          
           startDate: '2026-01-15'
         },
         {
           id: 'task-2',
-          sprintId: 'spr-2',
           title: 'Build API quản lý dự án',
           description: 'Xây dựng các endpoint CRUD cho dự án, sprint và task.',
           priority: 'Cao',
@@ -124,7 +103,7 @@ export const useStore = create<StoreState>((set) => ({
           status: 'In Progress',
           estimatedHours: 24,
           actualHours: 12,
-          completionPercent: 40,
+          completionPercent: 25,
           dueDate: '2026-01-25',
           position: 2,
           commentCount: 1,
@@ -198,7 +177,7 @@ export const useStore = create<StoreState>((set) => ({
       ],
       costPlan: [
         { id: 'cp2', category: 'Lương nhân sự', type: 'Nhân sự', plannedAmount: 500000000, notes: 'Team frontend + design' },
-        { id: 'cp3', category: 'Hạ tầng cloud', type: 'CSVC', plannedAmount: 120000000, notes: 'AWS/Azure cho staging & production' }
+        { id: 'cp3', category: 'Hệ tống cloud', type: 'CSVC', plannedAmount: 120000000, notes: 'AWS/Azure cho staging & production' }
       ],
       createdAt: new Date().toISOString(),
       revenue: 400000000,
@@ -207,13 +186,9 @@ export const useStore = create<StoreState>((set) => ({
       margin: 30,
       actualIncome: 400000000,
       actualExpense: 280000000,
-      sprints: [
-        { id: 'spr-3', projectId: '2', name: 'Sprint 1', sprintNo: 1, startDate: '2026-02-01', endDate: '2026-02-14', status: 'Completed', goal: 'Research yêu cầu và wireframe luồng booking.' },
-        { id: 'spr-4', projectId: '2', name: 'Sprint 2', sprintNo: 2, startDate: '2026-02-15', endDate: '2026-02-28', status: 'Active', goal: 'Build module quản lý phòng và tích hợp thanh toán.' }
-      ],
       tasks: [
-        { id: 'task-3', sprintId: 'spr-4', title: 'Thiết kế luồng đặt phòng', description: 'Wireframe + high-fidelity cho luồng booking 3 bước.', priority: 'Cao', type: 'Task', status: 'In Progress', estimatedHours: 20, actualHours: 14, completionPercent: 70, dueDate: '2026-02-20', position: 1, commentCount: 2, assigneeId: 'e5', isReviewedToday: false, startDate: '2026-02-15' },
-        { id: 'task-4', sprintId: 'spr-4', title: 'API tích hợp cổng thanh toán', description: 'Kết nối VNPay/Momo cho module thanh toán.', priority: 'Cao', type: 'Feature', status: 'Backlog', estimatedHours: 32, actualHours: 0, completionPercent: 0, dueDate: '2026-02-27', position: 2, commentCount: 0, assigneeId: 'e2', isReviewedToday: false, startDate: '2026-02-22' }
+        { id: 'task-3', title: 'Thiết kế luồng đặt phòng', description: 'Wireframe + high-fidelity cho luồng booking 3 bước.', priority: 'Cao', type: 'Task', status: 'In Progress', estimatedHours: 20, actualHours: 14, completionPercent: 70, dueDate: '2026-02-20', position: 1, commentCount: 2, assigneeId: 'e5',  startDate: '2026-02-15' },
+        { id: 'task-4', title: 'API tích hợp cổng thanh toán', description: 'Kết nối VNPay/Momo cho module thanh toán.', priority: 'Cao', type: 'Feature', status: 'Backlog', estimatedHours: 32, actualHours: 0, completionPercent: 0, dueDate: '2026-02-27', position: 2, commentCount: 0, assigneeId: 'e2',  startDate: '2026-02-22' }
       ],
       workSchedules: [
         { id: 'ws5', projectId: '2', employeeId: 'e5', taskId: 'task-3', date: '2026-01-18', type: 'Sáng', efficiency: 92, isProductive: true, notes: 'Finalize wireframe booking flow' },
@@ -248,12 +223,9 @@ export const useStore = create<StoreState>((set) => ({
       margin: 0,
       actualIncome: 0,
       actualExpense: 0,
-      sprints: [
-        { id: 'spr-5', projectId: '3', name: 'Sprint 0', sprintNo: 0, startDate: '2026-03-01', endDate: '2026-03-14', status: 'Planned', goal: 'Khảo sát dữ liệu, setup môi trường và POC model cơ bản.' }
-      ],
       tasks: [
-        { id: 'task-5', sprintId: 'spr-5', title: 'Khảo sát dữ liệu nguồn', description: 'Đánh giá chất lượng và định dạng dữ liệu từ hệ thống Viettel.', priority: 'Cao', type: 'Research', status: 'Backlog', estimatedHours: 40, actualHours: 0, completionPercent: 0, dueDate: '2026-03-10', position: 1, commentCount: 0, assigneeId: 'e3', isReviewedToday: false, startDate: '2026-03-01' },
-        { id: 'task-6', sprintId: 'spr-5', title: 'Setup môi trường ML', description: 'Cấu hình Docker, Jupyter, và kết nối AWS SageMaker.', priority: 'Trung bình', type: 'Task', status: 'Backlog', estimatedHours: 16, actualHours: 0, completionPercent: 0, dueDate: '2026-03-07', position: 2, commentCount: 0, assigneeId: 'e2', isReviewedToday: false, startDate: '2026-03-01' }
+        { id: 'task-5', title: 'Khảo sát dữ liệu nguồn', description: 'Đánh giá chất lượng và định dạng dữ liệu từ hệ thống Viettel.', priority: 'Cao', type: 'Research', status: 'Backlog', estimatedHours: 40, actualHours: 0, completionPercent: 0, dueDate: '2026-03-10', position: 1, commentCount: 0, assigneeId: 'e3',  startDate: '2026-03-01' },
+        { id: 'task-6', title: 'Setup môi trường ML', description: 'Cấu hình Docker, Jupyter, và kết nối AWS SageMaker.', priority: 'Trung bình', type: 'Task', status: 'Backlog', estimatedHours: 16, actualHours: 0, completionPercent: 0, dueDate: '2026-03-07', position: 2, commentCount: 0, assigneeId: 'e2',  startDate: '2026-03-01' }
       ],
       workSchedules: []
     },
@@ -281,13 +253,9 @@ export const useStore = create<StoreState>((set) => ({
       expenses: 85000,
       profit: -85000,
       margin: -28.3,
-      sprints: [
-        { id: 'spr-6', projectId: '4', name: 'Sprint 1', sprintNo: 1, startDate: '2026-01-15', endDate: '2026-01-28', status: 'Active', goal: 'Parser cơ bản cho JS/TS và export Markdown.' },
-        { id: 'spr-7', projectId: '4', name: 'Sprint 2', sprintNo: 2, startDate: '2026-01-29', endDate: '2026-02-11', status: 'Planned', goal: 'Hỗ trợ Java/Python và tích hợp vào CI/CD.' }
-      ],
       tasks: [
-        { id: 'task-7', sprintId: 'spr-6', title: 'Parser AST cho TypeScript', description: 'Dùng @typescript-eslint/parser để trích xuất cấu trúc code.', priority: 'Cao', type: 'Feature', status: 'In Progress', estimatedHours: 24, actualHours: 18, completionPercent: 75, dueDate: '2026-01-24', position: 1, commentCount: 4, assigneeId: 'e2', isReviewedToday: true, startDate: '2026-01-15' },
-        { id: 'task-8', sprintId: 'spr-6', title: 'Generator Markdown template', description: 'Tạo template và logic render tài liệu từ AST.', priority: 'Trung bình', type: 'Feature', status: 'In Progress', estimatedHours: 16, actualHours: 8, completionPercent: 50, dueDate: '2026-01-26', position: 2, commentCount: 1, assigneeId: 'e2', isReviewedToday: false, startDate: '2026-01-20' }
+        { id: 'task-7', title: 'Parser AST cho TypeScript', description: 'Dùng @typescript-eslint/parser để trích xuất cấu trúc code.', priority: 'Cao', type: 'Feature', status: 'In Progress', estimatedHours: 24, actualHours: 18, completionPercent: 75, dueDate: '2026-01-24', position: 1, commentCount: 4, assigneeId: 'e2',  startDate: '2026-01-15' },
+        { id: 'task-8', title: 'Generator Markdown template', description: 'Tạo template và logic render tài liệu từ AST.', priority: 'Trung bình', type: 'Feature', status: 'In Progress', estimatedHours: 16, actualHours: 8, completionPercent: 50, dueDate: '2026-01-26', position: 2, commentCount: 1, assigneeId: 'e2',  startDate: '2026-01-20' }
       ],
       workSchedules: [
         { id: 'ws7', projectId: '4', employeeId: 'e2', taskId: 'task-7', date: '2026-01-18', type: 'Sáng', efficiency: 95, isProductive: true, notes: 'Hoàn thành parser cơ bản' },
@@ -297,9 +265,9 @@ export const useStore = create<StoreState>((set) => ({
     },
   ],
   customers: [
-    { id: 'c1', name: 'VinGroup', email: 'contact@vingroup.com', phone: '024 3974 9999', address: 'Số 7 Đường Bằng Lăng 1, Phường Việt Hưng, Quận Long Biên, Hà Nội' },
-    { id: 'c2', name: 'Sun Group', email: 'info@sungroup.com.vn', phone: '024 3939 3399', address: 'Tầng 9, Tòa nhà Sun City, 13 Hai Bà Trưng, Hoàn Kiếm, Hà Nội' },
-    { id: 'c3', name: 'Viettel', email: 'support@viettel.com.vn', phone: '1800 8098', address: 'Số 1 Trần Hữu Dực, Mỹ Đình 2, Nam Từ Liêm, Hà Nội' },
+    { id: 'c1', name: 'VinGroup', email: 'contact@vingroup.com', phone: '024 3974 9999', address: 'Số 7 Đường Bàng Lang 1, Phường Việt Hùng, Quận Long Biên, Hà Nội' },
+    { id: 'c2', name: 'Sun Group', email: 'info@sungroup.com.vn', phone: '024 3939 3399', address: 'Tầng 9, Tòa nhà Sun City, 13 Hai Bà Trung, Hoàn Kiếm, Hà Nội' },
+    { id: 'c3', name: 'Viettel', email: 'support@viettel.com.vn', phone: '1800 8098', address: 'Số 1 Trần Hữu Đức, Mễ Trì 2, Nam Từ Liêm, Hà Nội' },
   ],
   employees: [
     { id: 'e1', name: 'Nguyễn Văn A', department: 'Software Engineering', status: 'Active', avatar: 'https://i.pravatar.cc/150?u=e1', role: 'PM' },
@@ -326,6 +294,14 @@ export const useStore = create<StoreState>((set) => ({
   ],
   approvalRequests: [],
   personnelRequests: [],
+  cashFlowEntries: [
+    { id: '1', date: '15/03/2026', type: 'Thu nhập', category: 'Thanh toán dự án', amount: 45000000, project: 'Dự án Alpha', projectId: '1' },
+    { id: '2', date: '14/03/2026', type: 'Chi phí', category: 'Vật tư', amount: 12500000, project: 'Dự án Gamma', projectId: '3' },
+    { id: '3', date: '12/03/2026', type: 'Thu nhập', category: 'Tư vấn', amount: 8000000, project: 'Dự án Beta', projectId: '2' },
+    { id: '4', date: '10/03/2026', type: 'Chi phí', category: 'Lương', amount: 45810000, project: 'Chung' },
+    { id: '5', date: '08/03/2026', type: 'Chi phí', category: 'Thuê văn phòng', amount: 5000000, project: 'Chung' },
+    { id: '6', date: '05/03/2026', type: 'Thu nhập', category: 'Tạm ứng', amount: 25000000, project: 'Dự án Epsilon' },
+  ],
   currentUser: { id: 'e1', name: 'Nguyễn Văn A', role: 'PM' }, // Default to PM for testing
 
   addProject: (project) => set((state) => ({ projects: [project, ...state.projects] })),
@@ -340,5 +316,7 @@ export const useStore = create<StoreState>((set) => ({
   updatePersonnelRequest: (id, updates) => set((state) => ({
     personnelRequests: state.personnelRequests.map((r) => (r.id === id ? { ...r, ...updates } : r))
   })),
+  addCashFlowEntry: (entry) => set((state) => ({ cashFlowEntries: [entry, ...state.cashFlowEntries] })),
   setProjects: (projects) => set({ projects }),
 }));
+

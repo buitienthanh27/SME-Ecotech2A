@@ -1,4 +1,4 @@
-export type ProjectStatus = 'Đang thực hiện' | 'Đã hoàn thành' | 'Tạm dừng' | 'Đang chờ' | 'Draft' | 'Chờ duyệt';
+export type ProjectStatus = 'Đang thực hiện' | 'Đã hoàn thành' | 'Tạm dừng' | 'Đang chờ' | 'Draft' | 'Chờ duyệt' | 'Active';
 
 export interface ProjectCostItem {
   id: string;
@@ -39,7 +39,10 @@ export interface Project {
   sprints?: Sprint[];
   tasks?: Task[];
   workSchedules?: WorkShift[];
-  // Existing fields for compatibility if needed, but we'll use the new ones
+  actualIncome?: number;
+  actualExpense?: number;
+  
+  // Existing fields for compatibility if needed
   revenue?: number;
   expenses?: number;
   profit?: number;
@@ -78,6 +81,34 @@ export interface Employee {
   department: string;
   avatar?: string;
   status: 'Active' | 'Inactive';
+  role: 'CEO' | 'PM' | 'Lead' | 'Employee';
+}
+
+export interface ProgressHistoryEntry {
+  assignee: string;
+  fromProgress: number;
+  toProgress: number;
+  date: string;
+}
+
+export interface PersonnelRequest {
+  id: string;
+  projectId: string;
+  requestedBy: string;
+  employeeId: string;
+  role: string;
+  allocation: number;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  createdAt: string;
+  processedBy?: string;
+  processedAt?: string;
+}
+
+export interface Department {
+  id: string;
+  name: string;
+  headId: string;
+  description?: string;
 }
 
 export interface Personnel {
@@ -87,6 +118,7 @@ export interface Personnel {
   salary: number;
   projects: string[];
   status: 'Đang làm việc' | 'Đang nghỉ phép' | 'Đã nghỉ việc';
+  departmentId?: string;
 }
 
 export interface CashFlowEntry {
@@ -96,6 +128,7 @@ export interface CashFlowEntry {
   category: string;
   amount: number;
   project?: string;
+  projectId?: string; // Tying explicitly to project ID
   status: 'Đang chờ' | 'Đã duyệt' | 'Đã từ chối';
 }
 
@@ -112,6 +145,25 @@ export interface Sprint {
   endDate: string;
   status: 'Active' | 'Completed' | 'Planned';
   goal: string;
+}
+
+export interface TaskStatusLog {
+  id: string;
+  fromStatus: TaskStatus;
+  toStatus: TaskStatus;
+  changedById: string;
+  changedByName: string;
+  timestamp: string;
+  note?: string;
+}
+
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  userId: string;
+  userName: string;
+  text: string;
+  timestamp: string;
 }
 
 export interface Task {
@@ -133,6 +185,10 @@ export interface Task {
   assigneeId?: string;
   startingPercent?: number;
   startDate?: string;
+  parentId?: string;
+  progressHistory?: ProgressHistoryEntry[];
+  statusLogs?: TaskStatusLog[];
+  comments?: TaskComment[];
 }
 
 export type ShiftType = 'Sáng' | 'Chiều' | 'OT';
@@ -147,6 +203,7 @@ export interface WorkShift {
   efficiency: number;
   isProductive: boolean;
   notes?: string;
+  otHours?: number;
 }
 
 export interface TaskAssignee {

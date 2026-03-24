@@ -72,7 +72,7 @@ export const SubstitutionDialog: React.FC<Props> = ({
                 required
                 value={newAssigneeId}
                 onChange={(e) => setNewAssigneeId(e.target.value)}
-                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#003366]/20 focus:border-[#003366] transition-all"
+                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#148922]/20 focus:border-[#148922] transition-all"
               >
                 <option value="">Chọn nhân sự thay thế...</option>
                 {availableMembers.map(member => (
@@ -87,7 +87,7 @@ export const SubstitutionDialog: React.FC<Props> = ({
                 required
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#003366]/20 focus:border-[#003366] transition-all h-24 resize-none"
+                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#148922]/20 focus:border-[#148922] transition-all h-24 resize-none"
                 placeholder="Nhập lý do bàn giao công việc..."
               />
             </div>
@@ -112,7 +112,7 @@ export const SubstitutionDialog: React.FC<Props> = ({
             <button
               type="submit"
               disabled={isLoading || !newAssigneeId || !reason}
-              className="flex-1 px-4 py-2 rounded-xl bg-[#003366] text-white font-bold hover:bg-[#002244] transition-all shadow-lg shadow-[#003366]/20 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-2 rounded-xl bg-[#148922] text-white font-bold hover:bg-[#0b6b17] transition-all shadow-lg shadow-[#148922]/20 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>

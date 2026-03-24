@@ -62,7 +62,7 @@ export const TaskCreateModal: React.FC<Props> = ({ isOpen, onClose, onCreate, sp
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#003366]/20 focus:border-[#003366] transition-all"
+              className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#148922]/20 focus:border-[#148922] transition-all"
               placeholder="Nhập tiêu đề task..."
             />
           </div>
@@ -72,7 +72,7 @@ export const TaskCreateModal: React.FC<Props> = ({ isOpen, onClose, onCreate, sp
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#003366]/20 focus:border-[#003366] transition-all h-24 resize-none"
+              className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#148922]/20 focus:border-[#148922] transition-all h-24 resize-none"
               placeholder="Nhập mô tả chi tiết..."
             />
           </div>
@@ -83,7 +83,7 @@ export const TaskCreateModal: React.FC<Props> = ({ isOpen, onClose, onCreate, sp
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#003366]/20 focus:border-[#003366] transition-all"
+                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#148922]/20 focus:border-[#148922] transition-all"
               >
                 <option value="Cao">Cao</option>
                 <option value="Trung bình">Trung bình</option>
@@ -95,7 +95,7 @@ export const TaskCreateModal: React.FC<Props> = ({ isOpen, onClose, onCreate, sp
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value as TaskType)}
-                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#003366]/20 focus:border-[#003366] transition-all"
+                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#148922]/20 focus:border-[#148922] transition-all"
               >
                 <option value="Feature">Feature</option>
                 <option value="Bug">Bug</option>
@@ -112,7 +112,7 @@ export const TaskCreateModal: React.FC<Props> = ({ isOpen, onClose, onCreate, sp
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#003366]/20 focus:border-[#003366] transition-all"
+                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#148922]/20 focus:border-[#148922] transition-all"
               />
             </div>
             <div>
@@ -121,7 +121,7 @@ export const TaskCreateModal: React.FC<Props> = ({ isOpen, onClose, onCreate, sp
                 type="number"
                 value={estimatedHours}
                 onChange={(e) => setEstimatedHours(Number(e.target.value))}
-                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#003366]/20 focus:border-[#003366] transition-all"
+                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#148922]/20 focus:border-[#148922] transition-all"
               />
             </div>
           </div>
@@ -136,7 +136,7 @@ export const TaskCreateModal: React.FC<Props> = ({ isOpen, onClose, onCreate, sp
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 rounded-xl bg-[#003366] text-white font-bold hover:bg-[#002244] transition-all shadow-lg shadow-[#003366]/20"
+              className="flex-1 px-4 py-2 rounded-xl bg-[#148922] text-white font-bold hover:bg-[#0b6b17] transition-all shadow-lg shadow-[#148922]/20"
             >
               Tạo Task
             </button>

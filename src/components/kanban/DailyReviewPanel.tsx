@@ -69,7 +69,7 @@ export const DailyReviewPanel: React.FC<Props> = ({ isOpen, onClose, tasks, memb
         exit={{ x: '100%' }}
         className="relative w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col"
       >
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-[#003366] text-white">
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-[#148922] text-white">
           <div>
             <h2 className="text-xl font-bold">Đánh giá cuối ngày</h2>
             <p className="text-blue-200 text-xs mt-1">{new Date().toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
@@ -91,7 +91,7 @@ export const DailyReviewPanel: React.FC<Props> = ({ isOpen, onClose, tasks, memb
                   className="flex items-center justify-between w-full p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[#003366] flex items-center justify-center text-white font-bold">
+                    <div className="w-10 h-10 rounded-full bg-[#148922] flex items-center justify-center text-white font-bold">
                       {member?.name.charAt(0)}
                     </div>
                     <div className="text-left">
@@ -130,7 +130,7 @@ export const DailyReviewPanel: React.FC<Props> = ({ isOpen, onClose, tasks, memb
                                     type="checkbox" 
                                     checked={completedTasks[task.id] || false}
                                     onChange={() => toggleCompleted(task.id)}
-                                    className="w-4 h-4 rounded border-gray-300 text-[#003366] focus:ring-[#003366]"
+                                    className="w-4 h-4 rounded border-gray-300 text-[#148922] focus:ring-[#148922]"
                                   />
                                   <span className="text-xs font-medium text-gray-600">Hoàn thành</span>
                                 </label>
@@ -145,7 +145,7 @@ export const DailyReviewPanel: React.FC<Props> = ({ isOpen, onClose, tasks, memb
                                   min="0" 
                                   max="12"
                                   step="0.5"
-                                  className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#003366]/10 outline-none"
+                                  className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#148922]/10 outline-none"
                                   value={review.hoursWorked || ''}
                                   onChange={(e) => handleReviewChange(task.id, 'hoursWorked', Number(e.target.value))}
                                   placeholder="0.0"
@@ -157,7 +157,7 @@ export const DailyReviewPanel: React.FC<Props> = ({ isOpen, onClose, tasks, memb
                                   type="range" 
                                   min="0" 
                                   max="100"
-                                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#003366] mt-2"
+                                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#148922] mt-2"
                                   value={review.progressPercent ?? task.completionPercent}
                                   onChange={(e) => handleReviewChange(task.id, 'progressPercent', Number(e.target.value))}
                                 />
@@ -187,7 +187,7 @@ export const DailyReviewPanel: React.FC<Props> = ({ isOpen, onClose, tasks, memb
                             <div className="space-y-1">
                               <label className="text-[10px] font-bold text-gray-400 uppercase">Nhận xét của Lead</label>
                               <textarea 
-                                className="w-full p-3 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#003366]/10 outline-none resize-none h-20"
+                                className="w-full p-3 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#148922]/10 outline-none resize-none h-20"
                                 placeholder="Nhập nhận xét..."
                                 value={review.leadComment || ''}
                                 onChange={(e) => handleReviewChange(task.id, 'leadComment', e.target.value)}
@@ -206,12 +206,12 @@ export const DailyReviewPanel: React.FC<Props> = ({ isOpen, onClose, tasks, memb
 
         <div className="p-6 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
           <div className="text-sm font-medium text-gray-500">
-            Đã review <span className="text-[#003366] font-bold">{reviewedCount}</span>/{totalTasks} tasks
+            Đã review <span className="text-[#148922] font-bold">{reviewedCount}</span>/{totalTasks} tasks
           </div>
           <button 
             onClick={handleSubmit}
             disabled={reviewedCount === 0}
-            className="flex items-center gap-2 bg-[#003366] text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-[#003366]/20 hover:bg-[#002244] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 bg-[#148922] text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-[#148922]/20 hover:bg-[#0b6b17] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save className="w-5 h-5" />
             Lưu tất cả

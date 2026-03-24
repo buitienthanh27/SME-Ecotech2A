@@ -61,7 +61,7 @@ export const TaskCard: React.FC<Props> = ({ task, isOverlay, onClick, isUpdated 
       onClick={() => onClick?.(task.id)}
       className={clsx(
         "bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group relative",
-        isOverlay && "shadow-xl border-[#003366]/20",
+        isOverlay && "shadow-xl border-[#148922]/20",
         isClosed && "opacity-60 bg-gray-50 grayscale-[0.5]",
         isUpdated && "ring-2 ring-emerald-500 ring-offset-2 animate-pulse"
       )}
@@ -96,7 +96,7 @@ export const TaskCard: React.FC<Props> = ({ task, isOverlay, onClick, isUpdated 
         </div>
       </div>
 
-      <h4 className="text-sm font-bold text-gray-900 mb-3 line-clamp-2 leading-snug group-hover:text-[#003366]">
+      <h4 className="text-sm font-bold text-gray-900 mb-3 line-clamp-2 leading-snug group-hover:text-[#148922]">
         {task.title}
       </h4>
 
@@ -124,7 +124,7 @@ export const TaskCard: React.FC<Props> = ({ task, isOverlay, onClick, isUpdated 
         </div>
 
         <div className="flex items-center gap-2">
-           <div className="w-6 h-6 rounded-full bg-[#003366] flex items-center justify-center text-[10px] font-bold text-white border-2 border-white shadow-sm">
+           <div className="w-6 h-6 rounded-full bg-[#148922] flex items-center justify-center text-[10px] font-bold text-white border-2 border-white shadow-sm">
              {task.assigneeId === '1' ? 'A' : task.assigneeId === '2' ? 'B' : 'C'}
            </div>
         </div>

@@ -25,7 +25,6 @@ interface Comment {
 
 export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose, onUpdate, onSubstitute }) => {
   const [editedTask, setEditedTask] = useState<Task>(task);
-  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [progressLogs, setProgressLogs] = useState<DailyProgressLog[]>([]);
   const [bonuses, setBonuses] = useState<PerformanceBonus[]>([]);
@@ -44,7 +43,10 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
   useEffect(() => {
     const handleComment = (data: any) => {
       if (data.taskId === task.id) {
-        setComments(prev => [...prev, data.comment]);
+        setEditedTask(prev => ({
+          ...prev,
+          comments: [...(prev.comments || []), data.comment]
+        }));
       }
     };
 
@@ -74,7 +76,7 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
 
   useEffect(() => {
     commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [comments]);
+  }, [editedTask.comments]);
 
   const handleChange = (field: keyof Task, value: any) => {
     const updated = { ...editedTask, [field]: value };
@@ -100,15 +102,23 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
   const handleSendComment = () => {
     if (!newComment.trim()) return;
 
-    const comment: Comment = {
+    const comment: any = {
       id: Math.random().toString(36).substr(2, 9),
-      userId: 'me', // In real app, get from auth
+      taskId: task.id,
+      userId: 'me', 
       userName: 'Bạn',
       text: newComment,
       timestamp: new Date().toISOString(),
     };
 
-    setComments(prev => [...prev, comment]);
+    const updatedTask = {
+      ...editedTask,
+      comments: [...(editedTask.comments || []), comment]
+    };
+
+    setEditedTask(updatedTask);
+    onUpdate(updatedTask);
+    
     emit('task.commented', { 
       taskId: task.id, 
       comment, 
@@ -221,7 +231,7 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
                value={editedTask.status}
                onChange={(e) => handleChange('status', e.target.value as TaskStatus)}
              >
-               <option value="Backlog">Backlog</option>
+               <option value="Backlog">Khởi tạo</option>
                <option value="In Progress">Đang làm</option>
                <option value="In Review">Đang review</option>
                <option value="Done">Hoàn thành</option>
@@ -245,13 +255,13 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
                 <label className="text-xs font-bold text-gray-400 uppercase">Tiến độ thực hiện</label>
                 <button 
                   onClick={() => setShowLogForm(!showLogForm)}
-                  className="text-[10px] font-bold text-[#003366] hover:underline"
+                  className="text-[10px] font-bold text-[#148922] hover:underline"
                 >
                   {showLogForm ? 'Hủy' : 'Cập nhật nhật ký'}
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-lg font-bold text-[#003366]">{editedTask.completionPercent}%</span>
+                <span className="text-lg font-bold text-[#148922]">{editedTask.completionPercent}%</span>
               </div>
             </div>
             
@@ -270,19 +280,19 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
                       max="100" 
                       value={logPercent}
                       onChange={(e) => setLogPercent(Number(e.target.value))}
-                      className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#003366]"
+                      className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#148922]"
                     />
                     <span className="text-sm font-bold text-gray-700 w-12 text-right">{logPercent}%</span>
                   </div>
                   <textarea 
                     placeholder="Ghi chú công việc đã làm..."
-                    className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#003366]/10 focus:border-[#003366] transition-all resize-none h-20"
+                    className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#148922]/10 focus:border-[#148922] transition-all resize-none h-20"
                     value={logNote}
                     onChange={(e) => setLogNote(e.target.value)}
                   />
                   <button 
                     onClick={handleLogProgress}
-                    className="w-full py-2 bg-[#003366] text-white rounded-xl text-xs font-bold hover:bg-[#002244] transition-all"
+                    className="w-full py-2 bg-[#148922] text-white rounded-xl text-xs font-bold hover:bg-[#0b6b17] transition-all"
                   >
                     Xác nhận cập nhật
                   </button>
@@ -313,7 +323,7 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
                   ))}
                 </select>
                 <div className="flex items-center gap-2 mt-1">
-                  <div className="w-6 h-6 rounded-full bg-[#003366] flex items-center justify-center text-[10px] font-bold text-white">
+                  <div className="w-6 h-6 rounded-full bg-[#148922] flex items-center justify-center text-[10px] font-bold text-white">
                     {assignee?.name.charAt(0)}
                   </div>
                   <span className="text-xs text-gray-500">{assignee?.role}</span>
@@ -352,7 +362,7 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-400 uppercase">Mô tả chi tiết</label>
             <textarea 
-              className="w-full h-32 p-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:ring-2 focus:ring-[#003366]/10 focus:border-[#003366] transition-all resize-none"
+              className="w-full h-32 p-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:ring-2 focus:ring-[#148922]/10 focus:border-[#148922] transition-all resize-none"
               value={editedTask.description}
               onChange={(e) => handleChange('description', e.target.value)}
             />
@@ -375,6 +385,51 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
                     <CheckCircle2 className="w-4 h-4 text-amber-500" />
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Status History */}
+          {editedTask.statusLogs && editedTask.statusLogs.length > 0 && (
+            <div className="pt-8 border-t border-gray-100">
+              <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2 uppercase text-xs tracking-wider text-gray-400">
+                <Send className="w-3 h-3 rotate-180" />
+                Lịch sử thay đổi trạng thái
+              </h4>
+              <div className="space-y-4">
+                {editedTask.statusLogs.map((log) => {
+                  const getStatusLabel = (s: string) => {
+                    const labels: any = {
+                      'Backlog': 'Khởi tạo',
+                      'In Progress': 'Đang làm',
+                      'In Review': 'Đang review',
+                      'Done': 'Hoàn thành',
+                      'Closed': 'Đã đóng'
+                    };
+                    return labels[s] || s;
+                  };
+                  return (
+                    <div key={log.id} className="flex gap-4">
+                      <div className="relative">
+                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
+                          <CheckCircle2 className="w-4 h-4 text-blue-500" />
+                        </div>
+                        <div className="absolute top-8 bottom-[-16px] left-1/2 w-[1px] bg-gray-100 last:hidden" />
+                      </div>
+                      <div className="flex-1 pb-4">
+                        <div className="flex justify-between items-center mb-1">
+                          <p className="text-xs font-bold text-gray-900">
+                            {getStatusLabel(log.fromStatus)} → {getStatusLabel(log.toStatus)}
+                          </p>
+                          <span className="text-[10px] text-gray-400">{new Date(log.timestamp).toLocaleString('vi-VN')}</span>
+                        </div>
+                        <p className="text-xs text-gray-600">
+                          <span className="font-medium text-gray-900">{log.changedByName}:</span> {log.note || 'Cập nhật trạng thái thông thường'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -425,7 +480,7 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
           <div className="pt-8 border-t border-gray-100 space-y-6">
             <h4 className="font-bold text-gray-900 flex items-center gap-2">
               <MessageCircle className="w-5 h-5" />
-              Thảo luận ({task.commentCount + comments.length})
+              Thảo luận ({task.commentCount + (editedTask.comments?.length || 0)})
             </h4>
 
             {/* Typing Indicator */}
@@ -448,7 +503,7 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
             </AnimatePresence>
 
             <div className="space-y-4">
-              {comments.map((comment) => (
+              {(editedTask.comments || []).map((comment) => (
                 <motion.div 
                   key={comment.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -473,7 +528,7 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
             <div className="relative">
               <textarea 
                 placeholder="Viết bình luận..."
-                className="w-full p-4 pr-12 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:ring-2 focus:ring-[#003366]/10 focus:border-[#003366] transition-all resize-none h-24"
+                className="w-full p-4 pr-12 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:ring-2 focus:ring-[#148922]/10 focus:border-[#148922] transition-all resize-none h-24"
                 value={newComment}
                 onChange={handleTyping}
                 onKeyDown={(e) => {
@@ -486,7 +541,7 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
               <button 
                 onClick={handleSendComment}
                 disabled={!newComment.trim()}
-                className="absolute right-3 bottom-3 p-2 bg-[#003366] text-white rounded-xl hover:bg-[#002244] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="absolute right-3 bottom-3 p-2 bg-[#148922] text-white rounded-xl hover:bg-[#0b6b17] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -504,7 +559,7 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
           </button>
           <button 
             onClick={handleSave}
-            className="bg-[#003366] text-white px-6 py-2 rounded-xl font-bold text-sm shadow-lg shadow-[#003366]/20 hover:bg-[#002244] transition-all"
+            className="bg-[#148922] text-white px-6 py-2 rounded-xl font-bold text-sm shadow-lg shadow-[#148922]/20 hover:bg-[#0b6b17] transition-all"
           >
             Lưu thay đổi
           </button>

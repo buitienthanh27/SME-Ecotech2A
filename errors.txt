@@ -1,0 +1,14 @@
+src/components/cashflow/TransactionCreateModal.tsx(47,30): error TS2322: Type '{ children: string; type: "submit"; form: string; }' is not assignable to type 'BtnProps'.
+  Property 'form' does not exist on type 'BtnProps'.
+src/components/contract/ContractCreateModal.tsx(56,30): error TS2322: Type '{ children: string; type: "submit"; form: string; }' is not assignable to type 'BtnProps'.
+  Property 'form' does not exist on type 'BtnProps'.
+src/components/personnel/DepartmentCreateModal.tsx(95,30): error TS2322: Type '{ children: string; type: "submit"; form: string; }' is not assignable to type 'BtnProps'.
+  Property 'form' does not exist on type 'BtnProps'.
+src/components/personnel/PersonnelCreateModal.tsx(76,30): error TS2322: Type '{ children: string; type: "submit"; form: string; }' is not assignable to type 'BtnProps'.
+  Property 'form' does not exist on type 'BtnProps'.
+src/pages/ProjectBonuses.tsx(174,31): error TS2322: Type '{ key: any; bonus: any; }' is not assignable to type '{ bonus: PerformanceBonus; }'.
+  Property 'key' does not exist on type '{ bonus: PerformanceBonus; }'.
+src/store/useStore.ts(199,49): error TS2322: Type '"Hạ tầng"' is not assignable to type '"Nhân sự" | "CSVC" | "Vendor" | "Khác"'.
+src/store/useStore.ts(211,164): error TS2322: Type '"Design"' is not assignable to type 'TaskType'.
+src/store/useStore.ts(237,45): error TS2322: Type '"Hạ tầng"' is not assignable to type '"Nhân sự" | "CSVC" | "Vendor" | "Khác"'.
+src/store/useStore.ts(250,166): error TS2322: Type '"DevOps"' is not assignable to type 'TaskType'.

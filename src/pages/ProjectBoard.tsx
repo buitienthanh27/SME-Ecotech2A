@@ -302,7 +302,7 @@ export function ProjectBoard() {
 
   const executeStatusChangeDirectly = (task: Task, newStatus: TaskStatus, newIndex?: number, reason?: string) => {
     if (!project) return;
-    
+
     const newLog: TaskStatusLog = {
       id: `tsl-${Date.now()}`,
       fromStatus: task.status,
@@ -316,14 +316,14 @@ export function ProjectBoard() {
     // Lấy mức tiến độ mặc định cho trạng thái mới
     const newCompletionPercent = STATUS_COMPLETION_MAP[newStatus] ?? task.completionPercent;
 
-    let updatedTasks = projectTasks.map(t => 
-      t.id === task.id 
-        ? { 
-            ...t, 
-            status: newStatus,
-            completionPercent: newCompletionPercent,
-            statusLogs: [...(t.statusLogs || []), newLog] 
-          } 
+    let updatedTasks = projectTasks.map(t =>
+      t.id === task.id
+        ? {
+          ...t,
+          status: newStatus,
+          completionPercent: newCompletionPercent,
+          statusLogs: [...(t.statusLogs || []), newLog]
+        }
         : t
     );
 
@@ -349,9 +349,9 @@ export function ProjectBoard() {
   const executeStatusChange = () => {
     if (!pendingTaskMove) return;
     executeStatusChangeDirectly(
-      pendingTaskMove.task, 
-      pendingTaskMove.newStatus, 
-      pendingTaskMove.newIndex, 
+      pendingTaskMove.task,
+      pendingTaskMove.newStatus,
+      pendingTaskMove.newIndex,
       statusChangeReason
     );
     setPendingTaskMove(null);
@@ -467,7 +467,7 @@ export function ProjectBoard() {
     const groups: Record<string, typeof projectPersonnel> = {};
     const managedDepartment = INITIAL_DEPARTMENTS.find(d => d.headId === currentUser?.id.replace('e', ''));
     if (managedDepartment) groups[managedDepartment.name] = [];
-    
+
     projectPersonnel.forEach(m => {
       let dept = 'Khác';
       if (m.employee?.departmentId) {
@@ -475,7 +475,7 @@ export function ProjectBoard() {
       } else if (m.employee?.department) {
         dept = m.employee.department;
       }
-      
+
       if (!groups[dept]) groups[dept] = [];
       groups[dept].push(m);
     });
@@ -502,13 +502,6 @@ export function ProjectBoard() {
             <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all">
               <FileText className="w-4 h-4" />
               Báo cáo
-            </button>
-            <button
-              onClick={() => setIsReviewOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all"
-            >
-              <Activity className="w-4 h-4" />
-              Daily Review
             </button>
             <button
               onClick={() => setIsCreateTaskOpen(true)}
@@ -628,7 +621,7 @@ export function ProjectBoard() {
               </div>
             </div>
             <div className="relative h-3 bg-gray-100 rounded-full overflow-hidden mt-6">
-              <div 
+              <div
                 className="absolute inset-y-0 left-0 bg-[#148922] transition-all duration-1000 ease-out"
                 style={{ width: `${stats.avgProgress}%` }}
               />
@@ -751,7 +744,7 @@ export function ProjectBoard() {
               <div className="flex flex-col">
                 <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gray-50/30">
                   <div className="flex items-center gap-4">
-                    <button 
+                    <button
                       onClick={() => setSelectedDepartment(null)}
                       className="p-2.5 bg-white border border-gray-200 hover:border-[#148922] hover:text-[#148922] rounded-xl transition-all shadow-sm"
                     >
@@ -780,80 +773,80 @@ export function ProjectBoard() {
                 <div className="p-8">
                   {(groupedPersonnel[selectedDepartment]?.length || 0) === 0 ? (
                     <div className="p-10 text-center bg-gray-50 rounded-2xl border border-gray-100 border-dashed">
-                       <Users className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                       <p className="text-[13px] font-bold text-gray-400 uppercase tracking-widest">Chưa có nhân sự nào từ phòng này tham gia dự án.</p>
-                       <p className="text-xs text-gray-400 mt-2">Trưởng phòng có thể thêm nhân sự để bắt đầu công việc.</p>
+                      <Users className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                      <p className="text-[13px] font-bold text-gray-400 uppercase tracking-widest">Chưa có nhân sự nào từ phòng này tham gia dự án.</p>
+                      <p className="text-xs text-gray-400 mt-2">Trưởng phòng có thể thêm nhân sự để bắt đầu công việc.</p>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full text-left">
                         <thead>
-                           <tr className="bg-gray-50/50">
-                             <th className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest rounded-l-xl w-[30%]">Họ tên & Vai trò</th>
-                             <th className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">% Allocation</th>
-                             <th className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">% Contribution</th>
-                             <th className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Thời gian</th>
-                             <th className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Trạng thái</th>
-                             <th className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest rounded-r-xl"></th>
-                           </tr>
+                          <tr className="bg-gray-50/50">
+                            <th className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest rounded-l-xl w-[30%]">Họ tên & Vai trò</th>
+                            <th className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">% Allocation</th>
+                            <th className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">% Contribution</th>
+                            <th className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Thời gian</th>
+                            <th className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Trạng thái</th>
+                            <th className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest rounded-r-xl"></th>
+                          </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                           {groupedPersonnel[selectedDepartment].map(m => (
-                             <tr key={m.id} className={cn("group hover:bg-gray-50/50 transition-all", m.status === 'Inactive' && "opacity-60")}>
-                               <td className="px-6 py-4">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-[#ECFDF5] flex items-center justify-center font-black text-[#148922]">
-                                      {m.employee?.name.charAt(0) || '?'}
-                                    </div>
-                                    <div>
-                                      <p className="text-[13px] font-bold text-gray-900">{m.employee?.name}</p>
-                                      <p className="text-[10px] font-black text-[#148922] uppercase tracking-widest">{m.role}</p>
-                                    </div>
+                          {groupedPersonnel[selectedDepartment].map(m => (
+                            <tr key={m.id} className={cn("group hover:bg-gray-50/50 transition-all", m.status === 'Inactive' && "opacity-60")}>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-[#ECFDF5] flex items-center justify-center font-black text-[#148922]">
+                                    {m.employee?.name.charAt(0) || '?'}
                                   </div>
-                               </td>
-                               <td className="px-6 py-4 text-center">
-                                  <div className="inline-flex flex-col items-center">
-                                    <span className="text-[13px] font-black text-gray-900">{m.allocation}%</span>
-                                    <div className="w-12 h-1 bg-gray-100 rounded-full mt-1 overflow-hidden">
-                                      <div className="h-full bg-[#148922]" style={{ width: `${m.allocation}%` }} />
-                                    </div>
+                                  <div>
+                                    <p className="text-[13px] font-bold text-gray-900">{m.employee?.name}</p>
+                                    <p className="text-[10px] font-black text-[#148922] uppercase tracking-widest">{m.role}</p>
                                   </div>
-                               </td>
-                               <td className="px-6 py-4 text-center">
-                                  <div className="inline-flex flex-col items-center">
-                                    <span className="text-[13px] font-black text-[#148922]">{m.contribution}%</span>
-                                    <div className="w-12 h-1 bg-gray-100 rounded-full mt-1 overflow-hidden">
-                                      <div className="h-full bg-[#148922]" style={{ width: `${m.contribution}%` }} />
-                                    </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <div className="inline-flex flex-col items-center">
+                                  <span className="text-[13px] font-black text-gray-900">{m.allocation}%</span>
+                                  <div className="w-12 h-1 bg-gray-100 rounded-full mt-1 overflow-hidden">
+                                    <div className="h-full bg-[#148922]" style={{ width: `${m.allocation}%` }} />
                                   </div>
-                               </td>
-                               <td className="px-6 py-4">
-                                  <div className="flex flex-col items-center gap-1">
-                                    <span className="text-[10px] font-bold text-gray-400">{m.startDate}</span>
-                                    <ArrowRightLeft className="w-3 h-3 text-gray-300 rotate-90" />
-                                    <span className="text-[10px] font-bold text-gray-400">{m.endDate}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <div className="inline-flex flex-col items-center">
+                                  <span className="text-[13px] font-black text-[#148922]">{m.contribution}%</span>
+                                  <div className="w-12 h-1 bg-gray-100 rounded-full mt-1 overflow-hidden">
+                                    <div className="h-full bg-[#148922]" style={{ width: `${m.contribution}%` }} />
                                   </div>
-                               </td>
-                               <td className="px-6 py-4 text-center">
-                                  <button
-                                    onClick={() => handleToggleMemberStatus(m.id, m.status)}
-                                    className={cn(
-                                      "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest transition-all",
-                                      m.status === 'Active'
-                                        ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                                    )}
-                                  >
-                                    {m.status}
-                                  </button>
-                               </td>
-                               <td className="px-6 py-4 text-right">
-                                  <button className="p-1.5 text-gray-300 hover:text-gray-900 hover:bg-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                                    <MoreVertical className="w-4 h-4" />
-                                  </button>
-                               </td>
-                             </tr>
-                           ))}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="text-[10px] font-bold text-gray-400">{m.startDate}</span>
+                                  <ArrowRightLeft className="w-3 h-3 text-gray-300 rotate-90" />
+                                  <span className="text-[10px] font-bold text-gray-400">{m.endDate}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <button
+                                  onClick={() => handleToggleMemberStatus(m.id, m.status)}
+                                  className={cn(
+                                    "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest transition-all",
+                                    m.status === 'Active'
+                                      ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                                  )}
+                                >
+                                  {m.status}
+                                </button>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <button className="p-1.5 text-gray-300 hover:text-gray-900 hover:bg-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                                  <MoreVertical className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
@@ -873,8 +866,8 @@ export function ProjectBoard() {
                     const members = membersList as any[];
                     const isManaged = INITIAL_DEPARTMENTS.find(d => d.headId === currentUser?.id.replace('e', ''))?.name === deptName;
                     return (
-                      <div 
-                        key={deptName} 
+                      <div
+                        key={deptName}
                         onClick={() => setSelectedDepartment(deptName)}
                         className={cn(
                           "bg-white rounded-[2rem] border p-6 cursor-pointer transition-all hover:-translate-y-1 hover:shadow-xl group",
@@ -898,16 +891,16 @@ export function ProjectBoard() {
                             <span className="text-[#148922] font-black text-xl mr-1">{members.length}</span> nhân sự
                           </p>
                           <div className="flex -space-x-3">
-                             {members.slice(0, 3).map((m, i) => (
-                               <div key={i} className="w-9 h-9 rounded-full border-[3px] border-white bg-gray-100 flex items-center justify-center text-[10px] font-black text-[#148922] uppercase z-10 shadow-sm" style={{ zIndex: 3 - i }}>
-                                 {m.employee?.name.charAt(0) || '?'}
-                               </div>
-                             ))}
-                             {members.length > 3 && (
-                               <div className="w-9 h-9 rounded-full border-[3px] border-white bg-gray-50 flex items-center justify-center text-[10px] font-black text-gray-400 z-0 shadow-sm">
-                                 +{members.length - 3}
-                               </div>
-                             )}
+                            {members.slice(0, 3).map((m, i) => (
+                              <div key={i} className="w-9 h-9 rounded-full border-[3px] border-white bg-gray-100 flex items-center justify-center text-[10px] font-black text-[#148922] uppercase z-10 shadow-sm" style={{ zIndex: 3 - i }}>
+                                {m.employee?.name.charAt(0) || '?'}
+                              </div>
+                            ))}
+                            {members.length > 3 && (
+                              <div className="w-9 h-9 rounded-full border-[3px] border-white bg-gray-50 flex items-center justify-center text-[10px] font-black text-gray-400 z-0 shadow-sm">
+                                +{members.length - 3}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -941,26 +934,6 @@ export function ProjectBoard() {
         employees={employees}
         currentUser={currentUser}
       />
-
-      {/* Daily Review Panel */}
-      <DailyReviewPanel
-        isOpen={isReviewOpen}
-        onClose={() => setIsReviewOpen(false)}
-        tasks={visibleTasks}
-        employees={employees}
-        onSave={(logs: any) => {
-          // In a real app, we'd send logs to backend
-          logs.forEach(log => {
-            realtimeService.simulateEvent('task.progress_logged', {
-              taskId: log.taskId,
-              progressPercent: log.progressPercent,
-              hoursWorked: log.hoursWorked
-            });
-          });
-          setIsReviewOpen(false);
-        }}
-      />
-
       {/* Substitution Dialog */}
       <SubstitutionDialog
         isOpen={isSubstitutionOpen}
@@ -1097,8 +1070,8 @@ export function ProjectBoard() {
         footer={
           <div className="flex justify-end gap-3">
             <Btn variant="secondary" onClick={() => { setPendingTaskMove(null); setStatusChangeReason(''); }}>Hủy</Btn>
-            <Btn 
-              variant="primary" 
+            <Btn
+              variant="primary"
               onClick={executeStatusChange}
               disabled={!statusChangeReason.trim()}
             >Xác nhận</Btn>
@@ -1113,12 +1086,12 @@ export function ProjectBoard() {
             <div>
               <p className="text-sm font-bold text-gray-900 mb-1">Cảnh báo chuyển ngược trạng thái</p>
               <p className="text-sm text-gray-600 leading-relaxed">
-                Bạn đang chuyển task <span className="font-bold">"{pendingTaskMove?.task.title}"</span> 
+                Bạn đang chuyển task <span className="font-bold">"{pendingTaskMove?.task.title}"</span>
                 về trạng thái <span className="font-bold text-[#148922]">"{COLUMNS.find(c => c.id === pendingTaskMove?.newStatus)?.title}"</span>.
               </p>
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Lý do chuyển ngược lại (Bắt buộc):</label>
             <textarea
@@ -1596,12 +1569,12 @@ function TaskDetailSheet({ isOpen, onClose, task, onUpdate, onSubstitution, empl
                   <div className="space-y-6 mb-8">
                     {task.comments && task.comments.length > 0 ? (
                       task.comments.map((comment: any) => (
-                        <CommentItem 
+                        <CommentItem
                           key={comment.id}
-                          name={comment.userName} 
-                          text={comment.text} 
-                          time={new Date(comment.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} 
-                          avatar={comment.userName.charAt(0)} 
+                          name={comment.userName}
+                          text={comment.text}
+                          time={new Date(comment.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                          avatar={comment.userName.charAt(0)}
                         />
                       ))
                     ) : (
@@ -1620,7 +1593,7 @@ function TaskDetailSheet({ isOpen, onClose, task, onUpdate, onSubstitution, empl
                         }
                       }}
                     />
-                    <button 
+                    <button
                       onClick={handleSendComment}
                       className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-[#148922] text-white rounded-xl hover:bg-[#0E6318] transition-all disabled:opacity-50"
                       disabled={!commentText.trim()}
@@ -1927,55 +1900,75 @@ function WorkScheduleTab({ schedules, tasks, employees }: { schedules: any[], ta
   const derivedSchedules = useMemo(() => {
     const result: any[] = [];
 
+    // Helper: find existing log by generated ID or by taskId+date+originalType
+    const findExistingLog = (taskId: string, dateStr: string, originalType: string) => {
+      // First try exact match by generated ID
+      const generatedId = `${taskId}-${dateStr}-${originalType}`;
+      const byId = schedules.find(s => s.id === generatedId);
+      if (byId) return byId;
+      // Then try match by taskId+date+type (exact type)
+      const byType = schedules.find(s => s.taskId === taskId && s.date === dateStr && s.type === originalType);
+      if (byType) return byType;
+      // Also check if original slot was changed to 'Nghỉ' (time off) - match by taskId+date and original generated ID pattern
+      const byTimeOff = schedules.find(s => s.taskId === taskId && s.date === dateStr && s.type === 'Nghỉ' && (s.originalType === originalType || s.id === generatedId));
+      return byTimeOff || null;
+    };
+
     // Generate planned shifts from tasks
     tasks.forEach(task => {
       if (!task.startDate || !task.dueDate || !task.assigneeId) return;
-      if (task.status === 'Closed') return; // Optionally skip closed tasks
+      if (task.status === 'Closed') return;
 
       let current = parseISO(task.startDate);
       const end = parseISO(task.dueDate);
 
       while (current <= end) {
-        const dayOfWeek = getDay(current); // 0=Sun, 1=Mon, ..., 6=Sat
+        const dayOfWeek = getDay(current);
         const dateStr = format(current, 'yyyy-MM-dd');
 
-        // Find if there's logged actual data for this day/task
-        const existingMorningLog = schedules.find(s => s.taskId === task.id && s.date === dateStr && s.type === 'Sáng');
-        const existingAfternoonLog = schedules.find(s => s.taskId === task.id && s.date === dateStr && s.type === 'Chiều');
+        const existingMorningLog = findExistingLog(task.id, dateStr, 'Sáng');
+        const existingAfternoonLog = findExistingLog(task.id, dateStr, 'Chiều');
 
         if (dayOfWeek >= 1 && dayOfWeek <= 5) {
           result.push({
-            id: existingMorningLog?.id || `${task.id}-${dateStr}-Sáng`,
             taskId: task.id,
             employeeId: task.assigneeId,
             date: dateStr,
             type: 'Sáng',
-            efficiency: existingMorningLog?.efficiency || 100,
-            isProductive: existingMorningLog ? existingMorningLog.isProductive : true,
-            notes: existingMorningLog?.notes || 'Kế hoạch',
+            slotType: 'Sáng', // Permanent slot identifier
+            efficiency: 100,
+            isProductive: true,
+            notes: 'Kế hoạch',
+            // Spread ALL fields from existing log to pick up pmComment, reason, type changes, etc.
+            ...(existingMorningLog ? existingMorningLog : {}),
+            id: existingMorningLog?.id || `${task.id}-${dateStr}-Sáng`,
             isPlanned: !existingMorningLog
           });
           result.push({
-            id: existingAfternoonLog?.id || `${task.id}-${dateStr}-Chiều`,
             taskId: task.id,
             employeeId: task.assigneeId,
             date: dateStr,
             type: 'Chiều',
-            efficiency: existingAfternoonLog?.efficiency || 100,
-            isProductive: existingAfternoonLog ? existingAfternoonLog.isProductive : true,
-            notes: existingAfternoonLog?.notes || 'Kế hoạch',
+            slotType: 'Chiều',
+            efficiency: 100,
+            isProductive: true,
+            notes: 'Kế hoạch',
+            ...(existingAfternoonLog ? existingAfternoonLog : {}),
+            id: existingAfternoonLog?.id || `${task.id}-${dateStr}-Chiều`,
             isPlanned: !existingAfternoonLog
           });
         } else if (dayOfWeek === 6) {
           result.push({
-            id: existingMorningLog?.id || `${task.id}-${dateStr}-Sáng`,
             taskId: task.id,
             employeeId: task.assigneeId,
             date: dateStr,
             type: 'Sáng',
-            efficiency: existingMorningLog?.efficiency || 100,
-            isProductive: existingMorningLog ? existingMorningLog.isProductive : true,
-            notes: existingMorningLog?.notes || 'Kế hoạch',
+            slotType: 'Sáng',
+            efficiency: 100,
+            isProductive: true,
+            notes: 'Kế hoạch',
+            ...(existingMorningLog ? existingMorningLog : {}),
+            id: existingMorningLog?.id || `${task.id}-${dateStr}-Sáng`,
             isPlanned: !existingMorningLog
           });
         }
@@ -2061,6 +2054,8 @@ function ScheduleListView({ schedules, employees, tasks }: any) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [editingShift, setEditingShift] = useState<any>(null);
+  const { projects, updateProject } = useStore();
+  const { id } = useParams();
 
   if (schedules.length === 0) {
     return (
@@ -2080,152 +2075,143 @@ function ScheduleListView({ schedules, employees, tasks }: any) {
   return (
     <>
       <div className="bg-white border border-[#E2E8F0] rounded-[12px] shadow-sm overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
-              <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide">Ngày & Ca</th>
-              <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide">Nhân viên</th>
-              <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide">Task công việc</th>
-              <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide text-center">Hiệu suất</th>
-              <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide text-center">Trạng thái</th>
-              <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide">Nhận xét PM</th>
-              <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide text-center">Hành động</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#F1F5F9]">
-            {paged.map((s: any) => {
-              const emp = employees.find((e: any) => e.id === s.employeeId);
-              const task = tasks.find((t: any) => t.id === s.taskId);
-              return (
-                <tr key={s.id} className="hover:bg-[#F8FAFC] transition-colors">
-                  <td className="px-4 py-3 text-[#1A202C]">
-                    <div>
-                      <p className="text-sm font-bold text-gray-900">{format(parseISO(s.date), 'dd/MM/yyyy')}</p>
-                      <span className={cn(
-                        "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md",
-                        s.type === 'Sáng' ? "bg-blue-100 text-blue-700" :
-                          s.type === 'Chiều' ? "bg-orange-100 text-orange-700" :
-                            "bg-red-100 text-red-700"
-                      )}>
-                        {s.type === 'Nghỉ' ? `Nghỉ ${s.reason ? `(${s.reason})` : ''}` : `Ca ${s.type}`}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-[#1A202C]">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-[#ECFDF5] border border-[#D1FAE5] flex items-center justify-center font-black text-[#148922] text-xs uppercase shadow-sm">
-                        {emp?.name.charAt(0)}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+                <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide">Ngày & Ca</th>
+                <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide">Nhân viên</th>
+                <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide">Task công việc</th>
+                <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide text-center">Trạng thái</th>
+                <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide">Nhận xét PM</th>
+                <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide text-center">Hành động</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F1F5F9]">
+              {paged.map((s: any) => {
+                const emp = employees.find((e: any) => e.id === s.employeeId);
+                const task = tasks.find((t: any) => t.id === s.taskId);
+                return (
+                  <tr key={s.id} className="hover:bg-[#F8FAFC] transition-colors">
+                    <td className="px-4 py-3 text-[#1A202C]">
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">{format(parseISO(s.date), 'dd/MM/yyyy')}</p>
+                        <span className={cn(
+                          "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md",
+                          (s.slotType || s.type) === 'Sáng' ? "bg-blue-100 text-blue-700" :
+                            (s.slotType || s.type) === 'Chiều' ? "bg-orange-100 text-orange-700" :
+                              "bg-purple-100 text-purple-700"
+                        )}>
+                          Ca {s.slotType || s.type}
+                        </span>
                       </div>
-                      <span className="text-sm font-bold text-gray-700">{emp?.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-[#1A202C]">
-                    <p className="text-sm font-bold text-gray-900">{task?.title || '—'}</p>
-                    <p className="text-[10px] font-medium text-gray-400 uppercase truncate max-w-[200px]">{task?.description}</p>
-                  </td>
-                  <td className="px-4 py-3 text-[#1A202C] text-center">
-                    {s.isPlanned ? (
-                      <span className="text-sm font-bold text-gray-300">—</span>
-                    ) : (
-                      <div className="inline-flex flex-col items-center">
-                        <div className="flex items-center gap-1 text-sm font-black text-gray-900">
-                          {s.efficiency}%
-                          {s.efficiency >= 90 ? <TrendingUp className="w-3 h-3 text-emerald-500" /> : <TrendingDown className="w-3 h-3 text-red-500" />}
+                    </td>
+                    <td className="px-4 py-3 text-[#1A202C]">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[#ECFDF5] border border-[#D1FAE5] flex items-center justify-center font-black text-[#148922] text-xs uppercase shadow-sm">
+                          {emp?.name.charAt(0)}
                         </div>
-                        <div className="w-16 h-1 bg-gray-100 rounded-full mt-1 overflow-hidden">
-                          <div className={cn("h-full", s.efficiency >= 90 ? "bg-emerald-500" : "bg-amber-500")} style={{ width: `${s.efficiency}%` }} />
-                        </div>
+                        <span className="text-sm font-bold text-gray-700">{emp?.name}</span>
                       </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-[#1A202C] text-center">
-                    {s.isPlanned ? (
-                      <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-400 border border-gray-200 border-dashed">
-                        Kế hoạch
-                      </span>
-                    ) : (
-                      <span className={cn(
-                        "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                        s.isProductive ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
-                      )}>
-                        {s.isProductive ? 'Đạt' : 'Không đạt'}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-[#1A202C]">
-                    {s.pmComment ? (
-                      <span className="text-[11px] text-gray-700 font-medium max-w-xs truncate">{s.pmComment}</span>
-                    ) : (
-                      <span className="text-[10px] text-gray-300">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-[#1A202C] text-center">
-                    <button
-                      onClick={() => setEditingShift(s)}
-                      className="p-1.5 text-[#718096] hover:text-[#148922] hover:bg-[#ECFDF5] rounded-[6px] transition-colors"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                    </td>
+                    <td className="px-4 py-3 text-[#1A202C]">
+                      <p className="text-sm font-bold text-gray-900">{task?.title || '—'}</p>
+                      <p className="text-[10px] font-medium text-gray-400 uppercase truncate max-w-[200px]">{task?.description}</p>
+                    </td>
+                    <td className="px-4 py-3 text-[#1A202C] text-center">
+                      {s.type === 'Nghỉ' ? (
+                        <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-100 text-blue-700">
+                          Nghỉ {s.reason ? `(${s.reason})` : ''}
+                        </span>
+                      ) : s.isPlanned ? (
+                        <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-400 border border-gray-200 border-dashed">
+                          Kế hoạch
+                        </span>
+                      ) : (
+                        <span className={cn(
+                          "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                          (s.evaluationResult || (s.isProductive ? 'Đạt' : 'Không đạt')) === 'Đạt'
+                            ? "bg-emerald-100 text-emerald-700"
+                            : (s.evaluationResult || (s.isProductive ? 'Đạt' : 'Không đạt')) === 'Trung bình'
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-red-100 text-red-700"
+                        )}>
+                          {s.evaluationResult || (s.isProductive ? 'Đạt' : 'Không đạt')}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-[#1A202C]">
+                      {s.pmComment ? (
+                        <span className="text-[11px] text-gray-700 font-medium max-w-xs truncate">{s.pmComment}</span>
+                      ) : (
+                        <span className="text-[10px] text-gray-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-[#1A202C] text-center">
+                      <button
+                        onClick={() => setEditingShift(s)}
+                        className="p-1.5 text-[#718096] hover:text-[#148922] hover:bg-[#ECFDF5] rounded-[6px] transition-colors"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
 
-      {showPagination && (
-        <div className="px-4 py-3 border-t border-[#E2E8F0] flex items-center justify-between text-[13px] text-[#718096]">
-          <div className="flex items-center gap-2">
-            <span>Hiển thị</span>
-            <select
-              value={pageSize}
-              onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
-              className="border border-[#E2E8F0] rounded-[6px] px-2 py-1 text-[13px] text-[#1A202C] focus:outline-none focus:border-[#148922]"
-            >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
-            <span>/ {schedules.length} bản ghi</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="p-1.5 rounded-[6px] hover:bg-[#F1F5F9] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-              let pg = i + 1;
-              if (totalPages > 5 && page > 3) pg = page - 2 + i;
-              if (pg > totalPages) return null;
-              return (
-                <button
-                  key={pg}
-                  onClick={() => setPage(pg)}
-                  className={`w-8 h-8 rounded-[6px] text-[13px] font-medium transition-colors ${
-                    page === pg
+        {showPagination && (
+          <div className="px-4 py-3 border-t border-[#E2E8F0] flex items-center justify-between text-[13px] text-[#718096]">
+            <div className="flex items-center gap-2">
+              <span>Hiển thị</span>
+              <select
+                value={pageSize}
+                onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
+                className="border border-[#E2E8F0] rounded-[6px] px-2 py-1 text-[13px] text-[#1A202C] focus:outline-none focus:border-[#148922]"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+              <span>/ {schedules.length} bản ghi</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-1.5 rounded-[6px] hover:bg-[#F1F5F9] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                let pg = i + 1;
+                if (totalPages > 5 && page > 3) pg = page - 2 + i;
+                if (pg > totalPages) return null;
+                return (
+                  <button
+                    key={pg}
+                    onClick={() => setPage(pg)}
+                    className={`w-8 h-8 rounded-[6px] text-[13px] font-medium transition-colors ${page === pg
                       ? 'bg-[#148922] text-white'
                       : 'hover:bg-[#F1F5F9] text-[#718096]'
-                  }`}
-                >
-                  {pg}
-                </button>
-              );
-            })}
-            <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="p-1.5 rounded-[6px] hover:bg-[#F1F5F9] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+                      }`}
+                  >
+                    {pg}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="p-1.5 rounded-[6px] hover:bg-[#F1F5F9] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
       </div>
 
       {/* Shift Evaluation Modal */}
@@ -2235,11 +2221,20 @@ function ScheduleListView({ schedules, employees, tasks }: any) {
           employees={employees}
           tasks={tasks}
           onClose={() => setEditingShift(null)}
-          onSave={(updatedShift) => {
-            const index = schedules.findIndex((s: any) => s.id === updatedShift.id);
+          onSave={(updatedShift: any) => {
+            const project = projects.find(p => p.id === id);
+            if (!project) return;
+
+            const newSchedules = [...(project.workSchedules || [])];
+            const index = newSchedules.findIndex((s: any) => s.id === updatedShift.id);
             if (index !== -1) {
-              schedules[index] = { ...schedules[index], ...updatedShift };
+              newSchedules[index] = { ...newSchedules[index], ...updatedShift };
+            } else {
+              delete updatedShift.isPlanned; // Remove temporary UI flag before saving
+              newSchedules.push(updatedShift);
             }
+
+            updateProject(project.id, { workSchedules: newSchedules });
             setEditingShift(null);
           }}
         />
@@ -2432,9 +2427,9 @@ const PersonnelRequestsPanel: React.FC<{
 };
 
 function ShiftEvaluationModal({ shift, employees, tasks, onClose, onSave }: any) {
-  const [performanceRating, setPerformanceRating] = useState(shift.isProductive ? 'Đạt' : 'Không đạt');
+  const [performanceRating, setPerformanceRating] = useState(shift.evaluationResult || (shift.isProductive ? 'Đạt' : 'Không đạt'));
   const [comment, setComment] = useState(shift.pmComment || '');
-  const [timeOffType, setTimeOffType] = useState<'Phép' | 'Không phép' | null>(null);
+  const [timeOffType, setTimeOffType] = useState<'Phép' | 'Không phép' | null>(shift.type === 'Nghỉ' ? shift.reason as any : null);
 
   const emp = employees.find((e: any) => e.id === shift.employeeId);
   const task = tasks.find((t: any) => t.id === shift.taskId);
@@ -2443,10 +2438,12 @@ function ShiftEvaluationModal({ shift, employees, tasks, onClose, onSave }: any)
     let updatedShift: any = {
       ...shift,
       pmComment: comment,
-      isProductive: performanceRating === 'Đạt'
+      evaluationResult: performanceRating,
+      isProductive: performanceRating !== 'Không đạt'
     };
 
     if (timeOffType) {
+      updatedShift.originalType = shift.type; // Save original type for lookup
       updatedShift.type = 'Nghỉ';
       updatedShift.reason = timeOffType;
     }
@@ -2478,83 +2475,85 @@ function ShiftEvaluationModal({ shift, employees, tasks, onClose, onSave }: any)
               <p className="text-sm font-bold text-gray-900">
                 <span className={cn(
                   "px-2 py-1 rounded text-xs font-black uppercase tracking-widest",
-                  shift.type === 'Sáng' ? "bg-blue-100 text-blue-700" :
-                    shift.type === 'Chiều' ? "bg-orange-100 text-orange-700" :
-                      "bg-red-100 text-red-700"
+                  (shift.slotType || shift.type) === 'Sáng' ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
                 )}>
-                  {shift.type === 'Nghỉ' ? `Nghỉ ${shift.reason ? `(${shift.reason})` : ''}` : `Ca ${shift.type}`}
+                  Ca {shift.slotType || shift.type}
                 </span>
               </p>
             </div>
           </div>
 
-          {/* Performance Rating */}
-          <div>
-            <label className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-3 block">Đánh giá hiệu suất</label>
-            <div className="grid grid-cols-3 gap-2">
-              {['Đạt', 'Trung bình', 'Không đạt'].map(rating => (
+          {/* Time Off Option - shown first */}
+          <div className="border-b border-[#E2E8F0] pb-4">
+            <label className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-3 block">Có nghỉ ca này?</label>
+            <div className="grid grid-cols-2 gap-2">
+              {['Phép', 'Không phép'].map(type => (
                 <button
-                  key={rating}
-                  onClick={() => setPerformanceRating(rating)}
+                  key={type}
+                  onClick={() => setTimeOffType(timeOffType === type ? null : (type as 'Phép' | 'Không phép'))}
                   className={cn(
                     "p-3 rounded-lg font-bold text-sm uppercase tracking-widest transition-all border-2",
-                    performanceRating === rating
-                      ? rating === 'Đạt'
-                        ? "bg-emerald-100 text-emerald-700 border-emerald-500"
-                        : rating === 'Trung bình'
-                        ? "bg-amber-100 text-amber-700 border-amber-500"
+                    timeOffType === type
+                      ? type === 'Phép'
+                        ? "bg-blue-100 text-blue-700 border-blue-500"
                         : "bg-red-100 text-red-700 border-red-500"
                       : "bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300"
                   )}
                 >
-                  {rating}
+                  {type}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* PM Comment */}
-          <div>
-            <label className="text-sm font-bold text-gray-600 uppercase tracking-widest">Nhận xét PM</label>
-            <textarea
-              value={comment}
-              onChange={e => setComment(e.target.value)}
-              placeholder="Nhập nhận xét của bạn..."
-              className="mt-2 w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#1A202C] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#148922]/20 focus:border-[#148922]"
-              rows={2}
-            />
-          </div>
-
-          {/* Time Off Option */}
-          <div className="border-t border-[#E2E8F0] pt-4">
-              <label className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-3 block">Có nghỉ ca này?</label>
-              <div className="grid grid-cols-2 gap-2">
-                {['Phép', 'Không phép'].map(type => (
-                  <button
-                    key={type}
-                    onClick={() => setTimeOffType(timeOffType === type ? null : (type as 'Phép' | 'Không phép'))}
-                    className={cn(
-                      "p-3 rounded-lg font-bold text-sm uppercase tracking-widest transition-all border-2",
-                      timeOffType === type
-                        ? type === 'Phép'
-                          ? "bg-blue-100 text-blue-700 border-blue-500"
-                          : "bg-red-100 text-red-700 border-red-500"
-                        : "bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300"
-                    )}
-                  >
-                    {type}
-                  </button>
-                ))}
-                {timeOffType === null && (
-                  <button
-                    onClick={() => setTimeOffType(null)}
-                    className="col-span-2 p-3 rounded-lg font-bold text-sm uppercase tracking-widest transition-all border-2 bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300"
-                  >
-                    Không có sự thay đổi
-                  </button>
-                )}
+          {/* Performance Rating + PM Comment - only show when NOT on leave */}
+          {!timeOffType ? (
+            <>
+              {/* Performance Rating */}
+              <div>
+                <label className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-3 block">Đánh giá hiệu suất</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['Đạt', 'Trung bình', 'Không đạt'].map(rating => (
+                    <button
+                      key={rating}
+                      onClick={() => setPerformanceRating(rating)}
+                      className={cn(
+                        "p-3 rounded-lg font-bold text-sm uppercase tracking-widest transition-all border-2",
+                        performanceRating === rating
+                          ? rating === 'Đạt'
+                            ? "bg-emerald-100 text-emerald-700 border-emerald-500"
+                            : rating === 'Trung bình'
+                              ? "bg-amber-100 text-amber-700 border-amber-500"
+                              : "bg-red-100 text-red-700 border-red-500"
+                          : "bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300"
+                      )}
+                    >
+                      {rating}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {/* PM Comment */}
+              <div>
+                <label className="text-sm font-bold text-gray-600 uppercase tracking-widest">Nhận xét PM</label>
+                <textarea
+                  value={comment}
+                  onChange={e => setComment(e.target.value)}
+                  placeholder="Nhập nhận xét của bạn..."
+                  className="mt-2 w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#1A202C] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#148922]/20 focus:border-[#148922]"
+                  rows={2}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex items-center gap-3">
+              <Clock className="w-5 h-5 text-blue-600 shrink-0" />
+              <p className="text-sm text-blue-800 font-medium">
+                Nhân viên nghỉ <span className="font-bold">{timeOffType}</span> ca này — không cần đánh giá hiệu suất.
+              </p>
             </div>
+          )}
 
           {/* Task Info */}
           {task && (

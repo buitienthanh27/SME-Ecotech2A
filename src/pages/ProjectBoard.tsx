@@ -916,6 +916,8 @@ export function ProjectBoard() {
           schedules={project?.workSchedules || []}
           tasks={projectTasks}
           employees={employees}
+          project={project}
+          updateProject={updateProject}
         />
       )}
 
@@ -1893,9 +1895,10 @@ function SubstitutionDialog({ isOpen, onClose, task, onConfirm, employees }: any
 
 // --- Work Schedule Components ---
 
-function WorkScheduleTab({ schedules, tasks, employees }: { schedules: any[], tasks: Task[], employees: Employee[] }) {
+function WorkScheduleTab({ schedules, tasks, employees, project, updateProject }: { schedules: any[], tasks: Task[], employees: Employee[], project?: any, updateProject?: (id: string, data: any) => void }) {
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [selectedEmpId, setSelectedEmpId] = useState<string>('all');
+  const [showAddOTModal, setShowAddOTModal] = useState(false);
 
   const derivedSchedules = useMemo(() => {
     const result: any[] = [];
@@ -2024,6 +2027,15 @@ function WorkScheduleTab({ schedules, tasks, employees }: { schedules: any[], ta
             <option value="all">Tất cả nhân viên</option>
             {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
+          {updateProject && project && (
+            <button
+              onClick={() => setShowAddOTModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-[#148922] hover:bg-[#0E6318] text-white text-sm font-bold rounded-xl transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Thêm ca OT
+            </button>
+          )}
           <div className="hidden md:flex items-center gap-4 border-l border-gray-200 pl-4">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
@@ -2045,6 +2057,20 @@ function WorkScheduleTab({ schedules, tasks, employees }: { schedules: any[], ta
         <ScheduleListView schedules={filteredSchedules} employees={employees} tasks={tasks} />
       ) : (
         <ScheduleCalendarView schedules={filteredSchedules} employees={employees} />
+      )}
+
+      {/* Add OT Shift Modal */}
+      {showAddOTModal && project && updateProject && (
+        <AddOTShiftModal
+          employees={employees}
+          tasks={tasks}
+          onClose={() => setShowAddOTModal(false)}
+          onSave={(newShift: any) => {
+            const newSchedules = [...(project.workSchedules || []), newShift];
+            updateProject(project.id, { workSchedules: newSchedules });
+            setShowAddOTModal(false);
+          }}
+        />
       )}
     </div>
   );
@@ -2100,7 +2126,7 @@ function ScheduleListView({ schedules, employees, tasks }: any) {
                           "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md",
                           (s.slotType || s.type) === 'Sáng' ? "bg-blue-100 text-blue-700" :
                             (s.slotType || s.type) === 'Chiều' ? "bg-orange-100 text-orange-700" :
-                              "bg-purple-100 text-purple-700"
+                              "bg-emerald-100 text-emerald-700"
                         )}>
                           Ca {s.slotType || s.type}
                         </span>
@@ -2243,124 +2269,269 @@ function ScheduleListView({ schedules, employees, tasks }: any) {
   );
 }
 
-function ScheduleCalendarView({ schedules, employees }: any) {
-  const days = useMemo(() => {
-    if (!schedules || schedules.length === 0) return [];
+function ScheduleCalendarView({ schedules, employees }: { schedules: any[], employees: any[] }) {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
-    // Find min date and max date
-    const allDates = schedules.map((s: any) => s.date).sort();
-    const minDate = parseISO(allDates[0]);
-    const maxDate = parseISO(allDates[allDates.length - 1]);
+  const currentMonth = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
 
-    let current = minDate;
-    const result = [];
-    while (current <= maxDate) {
-      if (getDay(current) !== 0) { // Skip Sunday completely
-        result.push(format(current, 'yyyy-MM-dd'));
+  // Get all days in current month
+  const daysInMonth = useMemo(() => {
+    const days: string[] = [];
+    const daysCount = new Date(currentYear, currentMonth + 1, 0).getDate();
+    for (let i = 1; i <= daysCount; i++) {
+      const date = new Date(currentYear, currentMonth, i);
+      if (date.getDay() !== 0) { // Skip Sundays
+        days.push(format(date, 'yyyy-MM-dd'));
       }
-      current = addDays(current, 1);
     }
-    return result;
-  }, [schedules]);
+    return days;
+  }, [currentMonth, currentYear]);
 
-  if (days.length === 0) {
-    return (
-      <div className="bg-white p-12 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col items-center justify-center text-center">
-        <Grid3X3 className="w-12 h-12 text-gray-200 mb-4" />
-        <h4 className="text-lg font-black text-gray-900 mb-2">Chưa có lịch biểu</h4>
-        <p className="text-sm font-medium text-gray-500 max-w-sm">Timeline dự án trống hoặc bị lọc hết.</p>
-      </div>
-    );
-  }
+  // Get week days for header
+  const weekDays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
-  // Group schedules by day and then by employee
+  const goToPrevMonth = () => setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  const goToNextMonth = () => setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  const goToToday = () => setCurrentDate(new Date());
+
+  // Group schedules by day
   const groupedSchedules = useMemo(() => {
-    const acc: Record<string, Record<string, any[]>> = {};
-    days.forEach(d => acc[d] = {}); // initialize all dates
+    const acc: Record<string, any[]> = {};
+    daysInMonth.forEach(d => acc[d] = []);
 
     schedules.forEach((s: any) => {
-      const { date, employeeId } = s;
-      if (!acc[date]) return; // ignore Sundays if any got through
-      if (!acc[date][employeeId]) {
-        acc[date][employeeId] = [];
-      }
-      acc[date][employeeId].push(s);
+      const { date } = s;
+      if (!acc[date]) return;
+      acc[date].push(s);
     });
     return acc;
-  }, [schedules, days]);
+  }, [schedules, daysInMonth]);
+
+  // Count shifts by type for each day
+  const shiftCounts = useMemo(() => {
+    const counts: Record<string, { Sáng: number; Chiều: number; OT: number }> = {};
+    daysInMonth.forEach(d => {
+      counts[d] = { Sáng: 0, Chiều: 0, OT: 0 };
+    });
+
+    schedules.forEach((s: any) => {
+      const { date, type } = s;
+      if (!counts[date]) return;
+      if (type === 'Sáng') counts[date].Sáng++;
+      else if (type === 'Chiều') counts[date].Chiều++;
+      else if (type === 'OT') counts[date].OT++;
+    });
+    return counts;
+  }, [schedules, daysInMonth]);
+
+  // Get employees working on selected day
+  const selectedDayEmployees = useMemo(() => {
+    if (!selectedDay) return [];
+    const dayShifts = groupedSchedules[selectedDay] || [];
+    return dayShifts.map((s: any) => ({
+      ...s,
+      employee: employees.find((e: any) => e.id === s.employeeId)
+    }));
+  }, [selectedDay, groupedSchedules, employees]);
+
+  const handleDayClick = (day: string) => {
+    setSelectedDay(selectedDay === day ? null : day);
+  };
+
+  // Calculate grid start offset (empty cells before first day)
+  const firstDayOffset = new Date(currentYear, currentMonth, 1).getDay() - 1;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-      {days.map(day => {
-        const empShifts = groupedSchedules[day] || {};
-        const activeEmployees = Object.keys(empShifts);
+    <div className="space-y-4">
+      {/* Month Navigation Header */}
+      <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={goToPrevMonth}
+            className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-xl transition-all border border-gray-200 hover:border-gray-300"
+          >
+            <ChevronLeft className="w-5 h-5 text-gray-600" />
+            <span className="text-sm font-bold text-gray-700">Tháng trước</span>
+          </button>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <h3 className="text-xl font-black text-gray-900 min-w-[180px] text-center">
+            Tháng {currentMonth + 1} / {currentYear}
+          </h3>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <button
+            onClick={goToToday}
+            className="px-4 py-2 bg-[#148922] text-white rounded-xl text-sm font-bold hover:bg-[#0E6318] transition-colors shadow-sm shadow-[#148922]/20"
+          >
+            Hôm nay
+          </button>
+          <button
+            onClick={goToNextMonth}
+            className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-xl transition-all border border-gray-200 hover:border-gray-300"
+          >
+            <span className="text-sm font-bold text-gray-700">Tháng sau</span>
+            <ChevronRight className="w-5 h-5 text-gray-600" />
+          </button>
+        </div>
+      </div>
 
-        return (
-          <div key={day} className="bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
-            {/* Header Date */}
-            <div className="bg-gray-50/50 p-4 border-b border-gray-100 flex items-center justify-between">
+      {/* Calendar Grid - Month View */}
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+        {/* Week day headers */}
+        <div className="grid grid-cols-7 bg-gradient-to-r from-[#148922] to-[#0E6318]">
+          {weekDays.map((day, idx) => (
+            <div key={idx} className="p-3 text-center text-xs font-black text-white uppercase">
+              {day}
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar days */}
+        <div className="grid grid-cols-7">
+          {/* Empty cells for offset */}
+          {Array.from({ length: firstDayOffset }).map((_, idx) => (
+            <div key={`empty-${idx}`} className="bg-gray-30 min-h-[100px] border-r border-b border-gray-50" />
+          ))}
+
+          {daysInMonth.map(day => {
+            const isToday = format(parseISO(day), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+            const counts = shiftCounts[day] || { Sáng: 0, Chiều: 0, OT: 0 };
+            const totalShifts = counts.Sáng + counts.Chiều + counts.OT;
+            const isSelected = selectedDay === day;
+
+            return (
+              <div
+                key={day}
+                onClick={() => handleDayClick(day)}
+                className={cn(
+                  "min-h-[110px] p-2 border-r border-b border-gray-100 cursor-pointer transition-all hover:bg-gray-50",
+                  isToday && "bg-[#148922]/5",
+                  isSelected && "bg-[#148922]/10 ring-2 ring-inset ring-[#148922]"
+                )}
+              >
+                {/* Day number */}
+                <div className={cn(
+                  "text-sm font-black mb-2",
+                  isToday ? "text-[#148922]" : "text-gray-700"
+                )}>
+                  {format(parseISO(day), 'd')}
+                </div>
+
+                {/* Shift counts */}
+                {totalShifts > 0 ? (
+                  <div className="space-y-1.5">
+                    {counts.Sáng > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="min-w-[22px] h-5 rounded-lg bg-blue-500 text-white flex items-center justify-center text-[10px] font-black">
+                          {counts.Sáng}
+                        </span>
+                        <span className="text-[10px] font-medium text-gray-600">Sáng</span>
+                      </div>
+                    )}
+                    {counts.Chiều > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="min-w-[22px] h-5 rounded-lg bg-orange-500 text-white flex items-center justify-center text-[10px] font-black">
+                          {counts.Chiều}
+                        </span>
+                        <span className="text-[10px] font-medium text-gray-600">Chiều</span>
+                      </div>
+                    )}
+                    {counts.OT > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="min-w-[22px] h-5 rounded-lg bg-emerald-500 text-white flex items-center justify-center text-[10px] font-black">
+                          {counts.OT}
+                        </span>
+                        <span className="text-[10px] font-medium text-gray-600">OT</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-[10px] text-gray-300 font-medium">—</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Detail Panel */}
+      {selectedDay && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 animate-in slide-in-from-bottom-4 shadow-lg">
+          <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#148922] text-white flex items-center justify-center">
+                <Calendar className="w-5 h-5" />
+              </div>
               <div>
-                <span className="block text-xl font-black text-gray-900">{format(parseISO(day), 'dd/MM')}</span>
-                <span className="text-[10px] font-bold text-gray-400 capitalize">{format(parseISO(day), 'EEEE', { locale: vi })}</span>
+                <h4 className="font-black text-gray-900 text-lg">
+                  Lịch làm việc
+                </h4>
+                <p className="text-sm font-medium text-gray-500">
+                  {format(parseISO(selectedDay), 'EEEE, dd/MM/yyyy', { locale: vi })}
+                </p>
               </div>
             </div>
+            <button
+              onClick={() => setSelectedDay(null)}
+              className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
 
-            {/* Body */}
-            <div className="p-4 flex-grow flex flex-col gap-4">
-              {activeEmployees.length === 0 ? (
-                <div className="flex-grow flex flex-col items-center justify-center opacity-30 grayscale min-h-[100px]">
-                  <Calendar className="w-8 h-8 text-gray-300 mb-2" />
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Trống</span>
-                </div>
-              ) : (
-                activeEmployees.map(empId => {
-                  const emp = employees.find((e: any) => e.id === empId);
-                  const shifts = empShifts[empId].sort((a, b) => {
-                    const order = { 'Sáng': 1, 'Chiều': 2, 'OT': 3 };
-                    return (order[a.type as keyof typeof order] || 4) - (order[b.type as keyof typeof order] || 4);
-                  });
-
-                  return (
-                    <div key={empId} className="flex flex-col gap-2 p-3 bg-white rounded-2xl border border-gray-100 shadow-sm transition-shadow hover:shadow-md">
-                      {/* Employee Info */}
-                      <div className="flex items-center gap-2 pb-2 border-b border-gray-50">
-                        <div className="w-6 h-6 rounded-full bg-[#ECFDF5] border border-[#D1FAE5] text-[#148922] flex items-center justify-center font-black text-[10px] uppercase shadow-inner">
-                          {emp?.name.charAt(0)}
-                        </div>
-                        <span className="text-xs font-black text-gray-900 line-clamp-1 flex-1" title={emp?.name}>{emp?.name}</span>
-                      </div>
-
-                      {/* Shifts */}
-                      <div className="space-y-1.5">
-                        {shifts.map(s => (
-                          <div key={s.id} className={cn(
-                            "flex items-center justify-between px-2 py-1.5 rounded-lg border text-[10px] font-bold",
-                            s.isPlanned
-                              ? "bg-gray-50 border-gray-200 border-dashed text-gray-500"
-                              : s.isProductive
-                                ? "bg-emerald-50 border-emerald-100 text-emerald-800"
-                                : "bg-amber-50 border-amber-100 text-amber-800"
-                          )}>
-                            <span className={cn(
-                              "uppercase tracking-wider mr-2",
-                              s.type === 'Sáng' ? "text-blue-600" :
-                                s.type === 'Chiều' ? "text-orange-600" :
-                                  "text-purple-600"
-                            )}>
-                              {s.type}
-                            </span>
-                            {!s.isPlanned && <span>{s.efficiency}%</span>}
-                          </div>
-                        ))}
+          {selectedDayEmployees.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-8">Không có ca làm việc</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {selectedDayEmployees.map((s: any) => (
+                <div
+                  key={s.id}
+                  className={cn(
+                    "flex items-center justify-between p-4 rounded-2xl border-2 transition-all hover:shadow-md",
+                    s.isPlanned
+                      ? "bg-gray-50 border-gray-100 border-dashed"
+                      : s.isProductive
+                        ? "bg-emerald-50 border-emerald-200"
+                        : "bg-amber-50 border-amber-200"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#148922] to-[#0E6318] text-white flex items-center justify-center font-black text-lg shadow-sm">
+                      {s.employee?.name.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="text-base font-black text-gray-900">{s.employee?.name}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-lg text-[10px] font-black uppercase",
+                          s.type === 'Sáng' ? "bg-blue-100 text-blue-700" :
+                            s.type === 'Chiều' ? "bg-orange-100 text-orange-700" : "bg-emerald-100 text-emerald-700"
+                        )}>
+                          {s.type}
+                        </span>
+                        {s.isPlanned && (
+                          <span className="text-[10px] font-bold text-gray-400">Kế hoạch</span>
+                        )}
                       </div>
                     </div>
-                  );
-                })
-              )}
+                  </div>
+                  {!s.isPlanned && (
+                    <div className="text-right">
+                      <span className="text-2xl font-black text-gray-900">{s.efficiency}%</span>
+                      <p className="text-[10px] font-bold text-gray-500">{s.isProductive ? 'Đạt' : 'Không đạt'}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-          </div>
-        );
-      })}
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -2430,6 +2601,7 @@ function ShiftEvaluationModal({ shift, employees, tasks, onClose, onSave }: any)
   const [performanceRating, setPerformanceRating] = useState(shift.evaluationResult || (shift.isProductive ? 'Đạt' : 'Không đạt'));
   const [comment, setComment] = useState(shift.pmComment || '');
   const [timeOffType, setTimeOffType] = useState<'Phép' | 'Không phép' | null>(shift.type === 'Nghỉ' ? shift.reason as any : null);
+  const [selectedShiftType, setSelectedShiftType] = useState(shift.slotType || shift.type || 'Sáng');
 
   const emp = employees.find((e: any) => e.id === shift.employeeId);
   const task = tasks.find((t: any) => t.id === shift.taskId);
@@ -2439,7 +2611,9 @@ function ShiftEvaluationModal({ shift, employees, tasks, onClose, onSave }: any)
       ...shift,
       pmComment: comment,
       evaluationResult: performanceRating,
-      isProductive: performanceRating !== 'Không đạt'
+      isProductive: performanceRating !== 'Không đạt',
+      type: selectedShiftType,
+      slotType: selectedShiftType
     };
 
     if (timeOffType) {
@@ -2449,12 +2623,6 @@ function ShiftEvaluationModal({ shift, employees, tasks, onClose, onSave }: any)
       updatedShift.reason = timeOffType;
     } else if (shift.type === 'Nghỉ') {
       // User wants to change from leave to working - restore original type
-      if (shift.originalType) {
-        updatedShift.type = shift.originalType;
-      } else {
-        // Fallback: try to infer from shift.slotType or use a default
-        updatedShift.type = shift.slotType || 'Sáng';
-      }
       // Clear the reason and originalType since they're now working
       updatedShift.reason = undefined;
       updatedShift.originalType = undefined;
@@ -2466,7 +2634,7 @@ function ShiftEvaluationModal({ shift, employees, tasks, onClose, onSave }: any)
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-gradient-to-r from-[#148922] to-[#0E6318] text-white p-6 flex items-center justify-between">
+        <div className="sticky top-0 bg-gradient-to-r from-[#148922] to-[#0E6318] text-white p-6 flex items-center justify-between rounded-t-2xl">
           <div>
             <h2 className="text-xl font-bold">Đánh giá ca làm</h2>
             <p className="text-[12px] text-emerald-100 mt-1">{emp?.name} - {format(parseISO(shift.date), 'dd/MM/yyyy')}</p>
@@ -2480,18 +2648,28 @@ function ShiftEvaluationModal({ shift, employees, tasks, onClose, onSave }: any)
         </div>
 
         <div className="p-6 space-y-6">
-          {/* Shift Type - Read Only */}
+          {/* Shift Type - Editable */}
           <div>
-            <label className="text-sm font-bold text-gray-600 uppercase tracking-widest">Loại ca</label>
-            <div className="mt-2 px-3 py-2 bg-gray-50 border border-[#E2E8F0] rounded-lg">
-              <p className="text-sm font-bold text-gray-900">
-                <span className={cn(
-                  "px-2 py-1 rounded text-xs font-black uppercase tracking-widest",
-                  (shift.slotType || shift.type) === 'Sáng' ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
-                )}>
-                  Ca {shift.slotType || shift.type}
-                </span>
-              </p>
+            <label className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-3 block">Chọn loại ca</label>
+            <div className="grid grid-cols-3 gap-2">
+              {['Sáng', 'Chiều', 'OT'].map(type => (
+                <button
+                  key={type}
+                  onClick={() => setSelectedShiftType(type)}
+                  className={cn(
+                    "p-3 rounded-lg font-bold text-sm uppercase tracking-widest transition-all border-2",
+                    selectedShiftType === type
+                      ? type === 'Sáng'
+                        ? "bg-blue-100 text-blue-700 border-blue-500"
+                        : type === 'Chiều'
+                          ? "bg-orange-100 text-orange-700 border-orange-500"
+                          : "bg-emerald-100 text-emerald-700 border-emerald-500"
+                      : "bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300"
+                  )}
+                >
+                  Ca {type}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -2591,6 +2769,103 @@ function ShiftEvaluationModal({ shift, employees, tasks, onClose, onSave }: any)
           >
             <Check className="w-4 h-4" />
             Lưu đánh giá
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddOTShiftModal({ employees, tasks, onClose, onSave }: { employees: any[], tasks: any[], onClose: () => void, onSave: (shift: any) => void }) {
+  const [selectedEmployee, setSelectedEmployee] = useState<string>('');
+  const [selectedTask, setSelectedTask] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+
+  const handleSave = () => {
+    if (!selectedEmployee || !selectedDate) return;
+
+    const newShift = {
+      id: `ot-${Date.now()}`,
+      employeeId: selectedEmployee,
+      taskId: selectedTask || undefined,
+      date: selectedDate,
+      type: 'OT',
+      slotType: 'OT',
+      efficiency: 100,
+      isProductive: true,
+      notes: 'OT',
+      isPlanned: false
+    };
+
+    onSave(newShift);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+        <div className="bg-gradient-to-r from-[#148922] to-[#0E6318] text-white p-6 flex items-center justify-between rounded-t-2xl">
+          <div>
+            <h2 className="text-xl font-bold">Thêm ca OT</h2>
+            <p className="text-emerald-100 text-xs mt-1">Thêm ca làm việc ngoài giờ</p>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-lg transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {/* Employee Selection */}
+          <div>
+            <label className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-2 block">Nhân viên</label>
+            <select
+              value={selectedEmployee}
+              onChange={e => setSelectedEmployee(e.target.value)}
+              className="w-full px-4 py-2 border border-[#E2E8F0] rounded-lg text-sm font-bold bg-[#F8FAFC] text-[#1A202C] outline-none focus:ring-2 focus:ring-[#148922]/20 focus:border-[#148922]"
+            >
+              <option value="">Chọn nhân viên</option>
+              {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+          </div>
+
+          {/* Date Selection */}
+          <div>
+            <label className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-2 block">Ngày làm việc</label>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={e => setSelectedDate(e.target.value)}
+              className="w-full px-4 py-2 border border-[#E2E8F0] rounded-lg text-sm font-bold bg-[#F8FAFC] text-[#1A202C] outline-none focus:ring-2 focus:ring-[#148922]/20 focus:border-[#148922]"
+            />
+          </div>
+
+          {/* Task Selection (Optional) */}
+          <div>
+            <label className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-2 block">Task (không bắt buộc)</label>
+            <select
+              value={selectedTask}
+              onChange={e => setSelectedTask(e.target.value)}
+              className="w-full px-4 py-2 border border-[#E2E8F0] rounded-lg text-sm font-bold bg-[#F8FAFC] text-[#1A202C] outline-none focus:ring-2 focus:ring-[#148922]/20 focus:border-[#148922]"
+            >
+              <option value="">Chọn task (nếu có)</option>
+              {tasks.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="bg-gray-50 p-6 border-t border-[#E2E8F0] flex gap-3 justify-end rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-[#E2E8F0] text-gray-600 bg-white hover:bg-gray-50 font-bold text-sm uppercase tracking-widest rounded-lg transition-all"
+          >
+            Hủy
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!selectedEmployee || !selectedDate}
+            className="px-4 py-2 bg-[#148922] hover:bg-[#0E6318] text-white font-bold text-sm uppercase tracking-widest rounded-lg shadow-md shadow-[#148922]/20 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Plus className="w-4 h-4" />
+            Thêm ca OT
           </button>
         </div>
       </div>

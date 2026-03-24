@@ -2443,9 +2443,21 @@ function ShiftEvaluationModal({ shift, employees, tasks, onClose, onSave }: any)
     };
 
     if (timeOffType) {
+      // User selected leave (Phép or Không phép)
       updatedShift.originalType = shift.type; // Save original type for lookup
       updatedShift.type = 'Nghỉ';
       updatedShift.reason = timeOffType;
+    } else if (shift.type === 'Nghỉ') {
+      // User wants to change from leave to working - restore original type
+      if (shift.originalType) {
+        updatedShift.type = shift.originalType;
+      } else {
+        // Fallback: try to infer from shift.slotType or use a default
+        updatedShift.type = shift.slotType || 'Sáng';
+      }
+      // Clear the reason and originalType since they're now working
+      updatedShift.reason = undefined;
+      updatedShift.originalType = undefined;
     }
 
     onSave(updatedShift);

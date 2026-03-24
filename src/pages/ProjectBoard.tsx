@@ -30,7 +30,8 @@ import {
   Grid3X3,
   TrendingUp,
   TrendingDown,
-  Check
+  Check,
+  Edit2
 } from 'lucide-react';
 import { format, parseISO, addDays, getDay } from 'date-fns';
 import { vi } from 'date-fns/locale';
@@ -92,6 +93,15 @@ const COLUMNS: { id: TaskStatus; title: string; color: string }[] = [
   { id: 'In Review', title: 'Đang review', color: 'bg-[#FEF3C7] text-[#B45309]' },
   { id: 'Done', title: 'Hoàn thành', color: 'bg-[#ECFDF5] text-[#148922]' },
 ];
+
+// Mức tiến độ mặc định cho mỗi trạng thái
+const STATUS_COMPLETION_MAP: Record<TaskStatus, number> = {
+  'Backlog': 0,
+  'In Progress': 25,
+  'In Review': 75,
+  'Done': 100,
+  'Closed': 100,
+};
 
 export function ProjectBoard() {
   const { id } = useParams();
@@ -303,11 +313,15 @@ export function ProjectBoard() {
       note: reason
     };
 
+    // Lấy mức tiến độ mặc định cho trạng thái mới
+    const newCompletionPercent = STATUS_COMPLETION_MAP[newStatus] ?? task.completionPercent;
+
     let updatedTasks = projectTasks.map(t => 
       t.id === task.id 
         ? { 
             ...t, 
-            status: newStatus, 
+            status: newStatus,
+            completionPercent: newCompletionPercent,
             statusLogs: [...(t.statusLogs || []), newLog] 
           } 
         : t
@@ -1292,13 +1306,6 @@ function TaskCard({ task, onClick, isOverlay, employees, allTasks, onTaskClick }
           Xem chi tiết
           <ChevronRight className="w-3 h-3" />
         </button>
-        {task.isReviewedToday && (
-          <div className="flex items-center gap-0.5">
-            {[1, 2, 3, 4, 5].map(s => (
-              <Star key={s} className={cn("w-3 h-3", s <= 4 ? "text-amber-400 fill-amber-400" : "text-gray-200")} />
-            ))}
-          </div>
-        )}
       </div>
 
       {allTasks && allTasks.filter((t: any) => t.parentId === task.id).length > 0 && (
@@ -2051,6 +2058,10 @@ function WorkScheduleTab({ schedules, tasks, employees }: { schedules: any[], ta
 }
 
 function ScheduleListView({ schedules, employees, tasks }: any) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [editingShift, setEditingShift] = useState<any>(null);
+
   if (schedules.length === 0) {
     return (
       <div className="bg-white p-12 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col items-center justify-center text-center">
@@ -2061,40 +2072,47 @@ function ScheduleListView({ schedules, employees, tasks }: any) {
     );
   }
 
+  // Calculate pagination
+  const totalPages = Math.ceil(schedules.length / pageSize);
+  const paged = schedules.slice((page - 1) * pageSize, page * pageSize);
+  const showPagination = schedules.length > 10;
+
   return (
-    <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
+    <>
+      <div className="bg-white border border-[#E2E8F0] rounded-[12px] shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left">
           <thead>
-            <tr className="bg-gray-50/50">
-              <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Ngày & Ca</th>
-              <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Nhân viên</th>
-              <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Task công việc</th>
-              <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Hiệu suất</th>
-              <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Trạng thái</th>
-              <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Ghi chú</th>
+            <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+              <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide">Ngày & Ca</th>
+              <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide">Nhân viên</th>
+              <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide">Task công việc</th>
+              <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide text-center">Hiệu suất</th>
+              <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide text-center">Trạng thái</th>
+              <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide">Nhận xét PM</th>
+              <th className="px-4 py-3 text-[11px] font-bold text-[#718096] uppercase tracking-wide text-center">Hành động</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
-            {schedules.map((s: any) => {
+          <tbody className="divide-y divide-[#F1F5F9]">
+            {paged.map((s: any) => {
               const emp = employees.find((e: any) => e.id === s.employeeId);
               const task = tasks.find((t: any) => t.id === s.taskId);
               return (
-                <tr key={s.id} className="hover:bg-gray-50/50 transition-all group">
-                  <td className="px-8 py-5">
+                <tr key={s.id} className="hover:bg-[#F8FAFC] transition-colors">
+                  <td className="px-4 py-3 text-[#1A202C]">
                     <div>
                       <p className="text-sm font-bold text-gray-900">{format(parseISO(s.date), 'dd/MM/yyyy')}</p>
                       <span className={cn(
                         "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md",
                         s.type === 'Sáng' ? "bg-blue-100 text-blue-700" :
                           s.type === 'Chiều' ? "bg-orange-100 text-orange-700" :
-                            "bg-purple-100 text-purple-700"
+                            "bg-red-100 text-red-700"
                       )}>
-                        Ca {s.type}
+                        {s.type === 'Nghỉ' ? `Nghỉ ${s.reason ? `(${s.reason})` : ''}` : `Ca ${s.type}`}
                       </span>
                     </div>
                   </td>
-                  <td className="px-8 py-5">
+                  <td className="px-4 py-3 text-[#1A202C]">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-[#ECFDF5] border border-[#D1FAE5] flex items-center justify-center font-black text-[#148922] text-xs uppercase shadow-sm">
                         {emp?.name.charAt(0)}
@@ -2102,11 +2120,11 @@ function ScheduleListView({ schedules, employees, tasks }: any) {
                       <span className="text-sm font-bold text-gray-700">{emp?.name}</span>
                     </div>
                   </td>
-                  <td className="px-8 py-5">
+                  <td className="px-4 py-3 text-[#1A202C]">
                     <p className="text-sm font-bold text-gray-900">{task?.title || '—'}</p>
                     <p className="text-[10px] font-medium text-gray-400 uppercase truncate max-w-[200px]">{task?.description}</p>
                   </td>
-                  <td className="px-8 py-5 text-center">
+                  <td className="px-4 py-3 text-[#1A202C] text-center">
                     {s.isPlanned ? (
                       <span className="text-sm font-bold text-gray-300">—</span>
                     ) : (
@@ -2121,7 +2139,7 @@ function ScheduleListView({ schedules, employees, tasks }: any) {
                       </div>
                     )}
                   </td>
-                  <td className="px-8 py-5 text-center">
+                  <td className="px-4 py-3 text-[#1A202C] text-center">
                     {s.isPlanned ? (
                       <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-400 border border-gray-200 border-dashed">
                         Kế hoạch
@@ -2135,13 +2153,20 @@ function ScheduleListView({ schedules, employees, tasks }: any) {
                       </span>
                     )}
                   </td>
-                  <td className="px-8 py-5">
-                    <p className={cn(
-                      "text-xs max-w-[150px] truncate group-hover:whitespace-normal group-hover:overflow-visible transition-all",
-                      s.isPlanned ? "text-gray-300 italic" : "text-gray-500"
-                    )}>
-                      {s.notes || '—'}
-                    </p>
+                  <td className="px-4 py-3 text-[#1A202C]">
+                    {s.pmComment ? (
+                      <span className="text-[11px] text-gray-700 font-medium max-w-xs truncate">{s.pmComment}</span>
+                    ) : (
+                      <span className="text-[10px] text-gray-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-[#1A202C] text-center">
+                    <button
+                      onClick={() => setEditingShift(s)}
+                      className="p-1.5 text-[#718096] hover:text-[#148922] hover:bg-[#ECFDF5] rounded-[6px] transition-colors"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
               );
@@ -2149,7 +2174,77 @@ function ScheduleListView({ schedules, employees, tasks }: any) {
           </tbody>
         </table>
       </div>
-    </div>
+
+      {showPagination && (
+        <div className="px-4 py-3 border-t border-[#E2E8F0] flex items-center justify-between text-[13px] text-[#718096]">
+          <div className="flex items-center gap-2">
+            <span>Hiển thị</span>
+            <select
+              value={pageSize}
+              onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
+              className="border border-[#E2E8F0] rounded-[6px] px-2 py-1 text-[13px] text-[#1A202C] focus:outline-none focus:border-[#148922]"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+            <span>/ {schedules.length} bản ghi</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="p-1.5 rounded-[6px] hover:bg-[#F1F5F9] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+              let pg = i + 1;
+              if (totalPages > 5 && page > 3) pg = page - 2 + i;
+              if (pg > totalPages) return null;
+              return (
+                <button
+                  key={pg}
+                  onClick={() => setPage(pg)}
+                  className={`w-8 h-8 rounded-[6px] text-[13px] font-medium transition-colors ${
+                    page === pg
+                      ? 'bg-[#148922] text-white'
+                      : 'hover:bg-[#F1F5F9] text-[#718096]'
+                  }`}
+                >
+                  {pg}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="p-1.5 rounded-[6px] hover:bg-[#F1F5F9] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+      </div>
+
+      {/* Shift Evaluation Modal */}
+      {editingShift && (
+        <ShiftEvaluationModal
+          shift={editingShift}
+          employees={employees}
+          tasks={tasks}
+          onClose={() => setEditingShift(null)}
+          onSave={(updatedShift) => {
+            const index = schedules.findIndex((s: any) => s.id === updatedShift.id);
+            if (index !== -1) {
+              schedules[index] = { ...schedules[index], ...updatedShift };
+            }
+            setEditingShift(null);
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -2335,4 +2430,160 @@ const PersonnelRequestsPanel: React.FC<{
     </div>
   );
 };
+
+function ShiftEvaluationModal({ shift, employees, tasks, onClose, onSave }: any) {
+  const [performanceRating, setPerformanceRating] = useState(shift.isProductive ? 'Đạt' : 'Không đạt');
+  const [comment, setComment] = useState(shift.pmComment || '');
+  const [timeOffType, setTimeOffType] = useState<'Phép' | 'Không phép' | null>(null);
+
+  const emp = employees.find((e: any) => e.id === shift.employeeId);
+  const task = tasks.find((t: any) => t.id === shift.taskId);
+
+  const handleSave = () => {
+    let updatedShift: any = {
+      ...shift,
+      pmComment: comment,
+      isProductive: performanceRating === 'Đạt'
+    };
+
+    if (timeOffType) {
+      updatedShift.type = 'Nghỉ';
+      updatedShift.reason = timeOffType;
+    }
+
+    onSave(updatedShift);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-gradient-to-r from-[#148922] to-[#0E6318] text-white p-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold">Đánh giá ca làm</h2>
+            <p className="text-[12px] text-emerald-100 mt-1">{emp?.name} - {format(parseISO(shift.date), 'dd/MM/yyyy')}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Shift Type - Read Only */}
+          <div>
+            <label className="text-sm font-bold text-gray-600 uppercase tracking-widest">Loại ca</label>
+            <div className="mt-2 px-3 py-2 bg-gray-50 border border-[#E2E8F0] rounded-lg">
+              <p className="text-sm font-bold text-gray-900">
+                <span className={cn(
+                  "px-2 py-1 rounded text-xs font-black uppercase tracking-widest",
+                  shift.type === 'Sáng' ? "bg-blue-100 text-blue-700" :
+                    shift.type === 'Chiều' ? "bg-orange-100 text-orange-700" :
+                      "bg-red-100 text-red-700"
+                )}>
+                  {shift.type === 'Nghỉ' ? `Nghỉ ${shift.reason ? `(${shift.reason})` : ''}` : `Ca ${shift.type}`}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          {/* Performance Rating */}
+          <div>
+            <label className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-3 block">Đánh giá hiệu suất</label>
+            <div className="grid grid-cols-3 gap-2">
+              {['Đạt', 'Trung bình', 'Không đạt'].map(rating => (
+                <button
+                  key={rating}
+                  onClick={() => setPerformanceRating(rating)}
+                  className={cn(
+                    "p-3 rounded-lg font-bold text-sm uppercase tracking-widest transition-all border-2",
+                    performanceRating === rating
+                      ? rating === 'Đạt'
+                        ? "bg-emerald-100 text-emerald-700 border-emerald-500"
+                        : rating === 'Trung bình'
+                        ? "bg-amber-100 text-amber-700 border-amber-500"
+                        : "bg-red-100 text-red-700 border-red-500"
+                      : "bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300"
+                  )}
+                >
+                  {rating}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* PM Comment */}
+          <div>
+            <label className="text-sm font-bold text-gray-600 uppercase tracking-widest">Nhận xét PM</label>
+            <textarea
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              placeholder="Nhập nhận xét của bạn..."
+              className="mt-2 w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#1A202C] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#148922]/20 focus:border-[#148922]"
+              rows={2}
+            />
+          </div>
+
+          {/* Time Off Option */}
+          <div className="border-t border-[#E2E8F0] pt-4">
+              <label className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-3 block">Có nghỉ ca này?</label>
+              <div className="grid grid-cols-2 gap-2">
+                {['Phép', 'Không phép'].map(type => (
+                  <button
+                    key={type}
+                    onClick={() => setTimeOffType(timeOffType === type ? null : (type as 'Phép' | 'Không phép'))}
+                    className={cn(
+                      "p-3 rounded-lg font-bold text-sm uppercase tracking-widest transition-all border-2",
+                      timeOffType === type
+                        ? type === 'Phép'
+                          ? "bg-blue-100 text-blue-700 border-blue-500"
+                          : "bg-red-100 text-red-700 border-red-500"
+                        : "bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300"
+                    )}
+                  >
+                    {type}
+                  </button>
+                ))}
+                {timeOffType === null && (
+                  <button
+                    onClick={() => setTimeOffType(null)}
+                    className="col-span-2 p-3 rounded-lg font-bold text-sm uppercase tracking-widest transition-all border-2 bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300"
+                  >
+                    Không có sự thay đổi
+                  </button>
+                )}
+              </div>
+            </div>
+
+          {/* Task Info */}
+          {task && (
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+              <p className="text-[10px] font-bold text-blue-700 uppercase tracking-widest">Task</p>
+              <p className="text-sm font-bold text-gray-900 mt-1">{task.title}</p>
+              <p className="text-[11px] text-gray-600 mt-1">{task.description}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="bg-gray-50 p-6 border-t border-[#E2E8F0] flex gap-3 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-[#E2E8F0] text-gray-600 bg-white hover:bg-gray-50 font-bold text-sm uppercase tracking-widest rounded-lg transition-all"
+          >
+            Hủy
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 bg-[#148922] hover:bg-[#0E6318] text-white font-bold text-sm uppercase tracking-widest rounded-lg shadow-md shadow-[#148922]/20 transition-all flex items-center gap-2"
+          >
+            <Check className="w-4 h-4" />
+            Lưu đánh giá
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 

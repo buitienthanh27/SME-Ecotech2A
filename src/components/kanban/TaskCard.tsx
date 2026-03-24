@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Star, MessageSquare, Calendar, CornerUpRight } from 'lucide-react';
+import { MessageSquare, Calendar, CornerUpRight } from 'lucide-react';
 import { format, isPast } from 'date-fns';
 import { Task } from '../../types';
 import clsx from 'clsx';
@@ -90,10 +90,7 @@ export const TaskCard: React.FC<Props> = ({ task, isOverlay, onClick, isUpdated 
             {task.type}
           </span>
         </div>
-        <div className="flex items-center gap-1">
-          {task.isReviewedToday && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />}
-          <span className="text-[10px] font-bold text-gray-400">#{task.id}</span>
-        </div>
+        <span className="text-[10px] font-bold text-gray-400">#{task.id}</span>
       </div>
 
       <h4 className="text-sm font-bold text-gray-900 mb-3 line-clamp-2 leading-snug group-hover:text-[#148922]">

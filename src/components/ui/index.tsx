@@ -149,14 +149,18 @@ export function DataTable<T>({ columns, data, keyExtractor, emptyState, onRowCli
   return (
     <div className="bg-white border border-[#E2E8F0] rounded-[12px] shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-[14px]">
+        <table className="w-full text-[14px] table-layout-fixed">
+          <colgroup>
+            {columns.map(col => (
+              <col key={String(col.key)} style={{ width: col.width || 'auto' }} />
+            ))}
+          </colgroup>
           <thead className="sticky top-0 z-10">
             <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
               {columns.map(col => (
                 <th
                   key={String(col.key)}
-                  style={{ width: col.width }}
-                  className={`px-4 py-3 text-left text-[11px] font-bold text-[#718096] uppercase tracking-wide whitespace-nowrap ${col.sortable ? 'cursor-pointer select-none hover:text-[#1A202C]' : ''}`}
+                  className={`px-4 py-3 text-left text-[11px] font-bold text-[#718096] uppercase tracking-wide break-words ${col.sortable ? 'cursor-pointer select-none hover:text-[#1A202C]' : ''}`}
                   onClick={() => col.sortable && handleSort(String(col.key))}
                 >
                   {col.header}
@@ -181,7 +185,7 @@ export function DataTable<T>({ columns, data, keyExtractor, emptyState, onRowCli
                 onClick={() => onRowClick?.(row)}
               >
                 {columns.map(col => (
-                  <td key={String(col.key)} className="px-4 py-3 text-[#1A202C]">
+                  <td key={String(col.key)} className="px-4 py-3 text-[#1A202C] break-words">
                     {col.render ? col.render(row, i) : String((row as any)[col.key] ?? '')}
                   </td>
                 ))}

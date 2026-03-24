@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo } from 'react';
 import { 
   Plus, 
   TrendingUp, 
@@ -84,13 +84,13 @@ export function CashFlow() {
     {
       key: 'date',
       header: 'Ngày',
-      width: '120px',
+      width: '12%',
       render: (row: any) => <span className="text-[#718096]">{row.date}</span>
     },
     {
       key: 'type',
       header: 'Loại',
-      width: '120px',
+      width: '14%',
       render: (row: any) => (
         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 w-fit ${
           row.type === 'Thu nhập' ? 'bg-[#ECFDF5] text-[#148922]' : 'bg-red-50 text-red-700'
@@ -103,6 +103,7 @@ export function CashFlow() {
     {
       key: 'category',
       header: 'Danh mục / Dự án',
+      width: '38%',
       render: (row: any) => (
         <div>
           <p className="font-bold text-[#1A202C]">{row.category}</p>
@@ -113,6 +114,7 @@ export function CashFlow() {
     {
       key: 'amount',
       header: 'Số tiền',
+      width: '22%',
       render: (row: any) => (
         <span className={`font-bold ${row.type === 'Thu nhập' ? 'text-[#148922]' : 'text-red-600'}`}>
           {row.type === 'Thu nhập' ? '+' : '-'}{fmt(row.amount)}
@@ -120,14 +122,9 @@ export function CashFlow() {
       )
     },
     {
-      key: 'status',
-      header: 'Trạng thái',
-      render: (row: any) => <StatusBadge status={row.status === 'Đã duyệt' ? 'Approved' : 'Pending'} />
-    },
-    {
       key: 'actions',
       header: '',
-      width: '100px',
+      width: '14%',
       render: (row: any) => (
         <div className="flex items-center justify-end gap-1">
           <button className="p-1.5 text-[#718096] hover:text-[#148922] hover:bg-[#ECFDF5] rounded-[6px] transition-colors"><FileText className="w-4 h-4" /></button>

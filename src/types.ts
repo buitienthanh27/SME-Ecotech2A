@@ -1,4 +1,4 @@
-export type ProjectStatus = 'Đang thực hiện' | 'Đã hoàn thành' | 'Tạm dừng' | 'Đang chờ' | 'Draft' | 'Chờ duyệt' | 'Active';
+﻿export type ProjectStatus = 'Đang thực hiện' | 'Đã hoàn thành' | 'Tạm dừng' | 'Đang chờ' | 'Draft' | 'Chờ duyệt' | 'Active';
 
 export interface ProjectCostItem {
   id: string;
@@ -129,7 +129,6 @@ export interface CashFlowEntry {
   amount: number;
   project?: string;
   projectId?: string; // Tying explicitly to project ID
-  status: 'Đang chờ' | 'Đã duyệt' | 'Đã từ chối';
 }
 
 export type TaskPriority = 'Cao' | 'Trung bình' | 'Thấp';
@@ -168,7 +167,7 @@ export interface TaskComment {
 
 export interface Task {
   id: string;
-  sprintId: string;
+  sprintId?: string;
   title: string;
   description: string;
   priority: TaskPriority;
@@ -191,19 +190,22 @@ export interface Task {
   comments?: TaskComment[];
 }
 
-export type ShiftType = 'Sáng' | 'Chiều' | 'OT';
+export type ShiftType = 'Sáng' | 'Chiều' | 'OT' | 'Nghỉ';
 
 export interface WorkShift {
   id: string;
   projectId: string;
   employeeId: string;
-  taskId: string;
+  taskId?: string;
   date: string;
   type: ShiftType;
   efficiency: number;
   isProductive: boolean;
   notes?: string;
   otHours?: number;
+  pmRating?: number; // 1-5 stars
+  pmComment?: string;
+  reason?: string; // reason for OT or time-off
 }
 
 export interface TaskAssignee {
@@ -250,7 +252,7 @@ export interface PerformanceBonus {
   employeeId: string;
   employeeCostId: string | null;  // null when Pending
   bonusAmount: number;
-  bonusType: 'Xuất sắc' | 'Hoàn thành sớm' | 'Chất lượng cao' | 'Khác';
+  bonusType: 'Xu?t s?c' | 'Hoàn thành s?m' | 'Ch?t lu?ng cao' | 'Khác';
   reason: string;
   createdByPMId: string;
   status: 'Pending' | 'Linked' | 'Locked' | 'Cancelled';
@@ -298,3 +300,4 @@ export interface Contract {
   projectId?: string;
   createdAt: string;
 }
+

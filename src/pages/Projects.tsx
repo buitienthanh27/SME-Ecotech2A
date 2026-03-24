@@ -114,12 +114,13 @@ const ProjectCard: React.FC<{ project: Project; onEdit: () => void }> = ({ proje
   const { employees } = useStore();
   const pm = employees.find(e => e.id === project.pmId);
 
-  const actualIncome = project.actualIncome !== undefined ? project.actualIncome : (project.revenue || 0);
-  const actualExpense = project.actualExpense !== undefined ? project.actualExpense : (project.expenses || 0);
-  const actualProfit = actualIncome - actualExpense;
-  const actualMargin = actualIncome > 0 ? Number(((actualProfit / actualIncome) * 100).toFixed(1)) : 0;
+  const plannedIncome = project.budget || 0;
+  const plannedExpense = project.costPlan?.reduce((sum, item) => sum + item.plannedAmount, 0) || 0;
+  const plannedProfit = plannedIncome - plannedExpense;
+  const plannedMargin = plannedIncome > 0 ? Number(((plannedProfit / plannedIncome) * 100).toFixed(1)) : 0;
 
-  const isNegativeProfit = actualProfit < 0;
+  const isNegativeProfit = plannedProfit < 0;
+  const projectMembers = project.members || [];
 
   return (
     <div
@@ -165,15 +166,15 @@ const ProjectCard: React.FC<{ project: Project; onEdit: () => void }> = ({ proje
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="p-3 bg-[#F8FAFC] rounded-[8px]">
             <p className="text-[10px] font-bold text-[#718096] uppercase tracking-wider mb-1">Doanh thu dự kiến</p>
-            <p className="text-[13px] font-bold text-[#1A202C]">{fmt(project.budget)}</p>
+            <p className="text-[13px] font-bold text-[#1A202C]">{fmt(plannedIncome)}</p>
           </div>
           <div className="p-3 bg-[#F8FAFC] rounded-[8px]">
             <p className="text-[10px] font-bold text-[#718096] uppercase tracking-wider mb-1">Chi phí dự kiến</p>
-            <p className="text-[13px] font-bold text-[#1A202C]">{fmt(actualExpense)}</p>
+            <p className="text-[13px] font-bold text-[#1A202C]">{fmt(plannedExpense)}</p>
           </div>
           <div className={`p-3 rounded-[8px] ${isNegativeProfit ? 'bg-red-50' : 'bg-emerald-50'}`}>
-            <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${isNegativeProfit ? 'text-[#EF4444]' : 'text-[#10B981]'}`}>Lợi nhuận</p>
-            <p className={`text-[13px] font-bold ${isNegativeProfit ? 'amount-negative' : 'amount-positive'}`}>{fmt(actualProfit)}</p>
+            <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${isNegativeProfit ? 'text-[#EF4444]' : 'text-[#10B981]'}`}>Lợi nhuận dự kiến</p>
+            <p className={`text-[13px] font-bold ${isNegativeProfit ? 'amount-negative' : 'amount-positive'}`}>{fmt(plannedProfit)}</p>
           </div>
         </div>
 
@@ -184,16 +185,16 @@ const ProjectCard: React.FC<{ project: Project; onEdit: () => void }> = ({ proje
           </div>
           <div className="flex items-center gap-2">
             <div className="w-20 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
-              <div className="h-full bg-[#148922] rounded-full" style={{ width: `${actualMargin}%` }} />
+              <div className="h-full bg-[#148922] rounded-full" style={{ width: `${plannedMargin}%` }} />
             </div>
-            <span className="text-[12px] font-bold text-[#4A5568]">{actualMargin}%</span>
+            <span className="text-[12px] font-bold text-[#4A5568]">{plannedMargin}%</span>
           </div>
         </div>
       </div>
 
       <div className="px-5 py-3 bg-[#F8FAFC] border-t border-[#E2E8F0] flex items-center justify-between">
         <div className="flex -space-x-2">
-          {project.members.slice(0, 4).map((m, i) => {
+          {projectMembers.slice(0, 4).map((m, i) => {
             const emp = employees.find(e => e.id === m.employeeId);
             return (
               <div key={i} className="w-7 h-7 rounded-full border-2 border-white bg-[#ECFDF5] flex items-center justify-center">
@@ -201,9 +202,9 @@ const ProjectCard: React.FC<{ project: Project; onEdit: () => void }> = ({ proje
               </div>
             );
           })}
-          {project.members.length > 4 && (
+          {projectMembers.length > 4 && (
             <div className="w-7 h-7 rounded-full border-2 border-white bg-[#F8FAFC] flex items-center justify-center text-[9px] font-bold text-[#718096]">
-              +{project.members.length - 4}
+              +{projectMembers.length - 4}
             </div>
           )}
         </div>

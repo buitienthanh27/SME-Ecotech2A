@@ -117,10 +117,20 @@ export function ProjectBoard() {
   const [inactiveReason, setInactiveReason] = useState('');
 
   const { projects, employees, updateProject, personnelRequests, updatePersonnelRequest, currentUser } = useStore();
-  const project = projects.find(p => p.id === id || p.id === '1');
+  const project = id ? projects.find(p => p.id === id) : projects[0];
   const projectMembers = project?.members || [];
   const projectSprints = project?.sprints || [];
   const projectTasks = project?.tasks || [];
+  const plannedIncome = project?.budget || 0;
+  const plannedExpense = (project?.costPlan?.reduce((sum, item) => sum + item.plannedAmount, 0))
+    || ((project?.expenses || 0) * 1000);
+  const actualIncome = project?.actualIncome !== undefined
+    ? project.actualIncome
+    : ((project?.revenue || 0) * 1000);
+  const actualExpense = project?.actualExpense !== undefined
+    ? project.actualExpense
+    : ((project?.expenses || 0) * 1000);
+  const provisionalProfit = actualIncome - actualExpense;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -562,8 +572,8 @@ export function ProjectBoard() {
                   <ArrowUpRight className="w-3 h-3 text-[#148922]" /> Doanh thu dự kiến / Thực tế
                 </p>
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs font-bold text-gray-500">Dự kiến: {project?.budget?.toLocaleString('vi-VN')} đ</span>
-                  <span className="text-sm font-black text-[#148922]">Thực: {(project?.actualIncome || 0).toLocaleString('vi-VN')} đ</span>
+                  <span className="text-xs font-bold text-gray-500">Dự kiến: {plannedIncome.toLocaleString('vi-VN')} đ</span>
+                  <span className="text-sm font-black text-[#148922]">Thực: {actualIncome.toLocaleString('vi-VN')} đ</span>
                 </div>
               </div>
               <div>
@@ -571,15 +581,15 @@ export function ProjectBoard() {
                   <ArrowDownRight className="w-3 h-3 text-red-500" /> Chi dự kiến / Thực tế
                 </p>
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs font-bold text-gray-500">Dự kiến: {(project?.costPlan?.reduce((sum, item) => sum + item.plannedAmount, 0) || 0).toLocaleString('vi-VN')} đ</span>
-                  <span className="text-sm font-black text-red-600">Thực: {(project?.actualExpense || 0).toLocaleString('vi-VN')} đ</span>
+                  <span className="text-xs font-bold text-gray-500">Dự kiến: {plannedExpense.toLocaleString('vi-VN')} đ</span>
+                  <span className="text-sm font-black text-red-600">Thực: {actualExpense.toLocaleString('vi-VN')} đ</span>
                 </div>
               </div>
             </div>
             <div className="mt-4 pt-4 border-t border-[#E2E8F0] flex justify-between items-center">
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Lãi/Lỗ tạm tính</span>
-              <span className={`text-base font-black ${((project?.actualIncome || 0) - (project?.actualExpense || 0)) >= 0 ? 'text-[#148922]' : 'text-red-600'}`}>
-                {(((project?.actualIncome || 0) - (project?.actualExpense || 0)) > 0 ? '+' : '')}{((project?.actualIncome || 0) - (project?.actualExpense || 0)).toLocaleString('vi-VN')} đ
+              <span className={`text-base font-black ${provisionalProfit >= 0 ? 'text-[#148922]' : 'text-red-600'}`}>
+                {(provisionalProfit > 0 ? '+' : '')}{provisionalProfit.toLocaleString('vi-VN')} đ
               </span>
             </div>
           </div>

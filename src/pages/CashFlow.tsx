@@ -219,58 +219,60 @@ export function CashFlow() {
             const profit = actualIn - actualOut;
 
             return (
-              <div key={project.id} className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col md:flex-row gap-6 items-center">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
+              <div key={project.id} className="bg-white p-4 sm:p-6 rounded-[2rem] border border-gray-100 shadow-sm">
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 items-stretch">
+                  <div className="xl:col-span-3 min-w-0">
+                    <div className="flex items-center gap-3 mb-2">
                     <div className="w-12 h-12 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl flex items-center justify-center">
                       <Briefcase className="w-5 h-5 text-[#148922]" />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-black text-gray-900 leading-tight">{project.name}</h3>
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-black text-gray-900 leading-tight break-words">{project.name}</h3>
                       <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{project.code}</p>
                     </div>
                   </div>
-                </div>
+                  </div>
 
-                <div className="flex-1 grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl">
+                  <div className="xl:col-span-6 grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
+                    <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl min-w-0">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">
                       <ArrowUpRight className="w-3 h-3 text-[#148922]" /> Thu (Thực / Dự kiến)
                     </p>
-                    <div className="flex items-end gap-2">
-                      <span className="text-lg font-black text-[#148922]">{fmt(actualIn)}</span>
-                      <span className="text-xs font-bold text-gray-400 mb-1">/ {fmt(expectedIn)}</span>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-base sm:text-lg font-black text-[#148922] break-words">{fmt(actualIn)}</span>
+                      <span className="text-xs font-bold text-gray-400">Dự kiến: {fmt(expectedIn)}</span>
                     </div>
                   </div>
-                  <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl">
+                    <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl min-w-0">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">
                       <ArrowDownRight className="w-3 h-3 text-red-500" /> Chi (Thực / Dự kiến)
                     </p>
-                    <div className="flex items-end gap-2">
-                      <span className="text-lg font-black text-red-600">{fmt(actualOut)}</span>
-                      <span className="text-xs font-bold text-gray-400 mb-1">/ {fmt(expectedExpense)}</span>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-base sm:text-lg font-black text-red-600 break-words">{fmt(actualOut)}</span>
+                      <span className="text-xs font-bold text-gray-400">Dự kiến: {fmt(expectedExpense)}</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex-1 flex flex-col items-end gap-3 border-l border-gray-100 pl-6">
-                  <div className="text-right">
+                  <div className="xl:col-span-3 flex flex-col justify-between gap-3 xl:border-l border-gray-100 xl:pl-6 pt-4 xl:pt-0 border-t xl:border-t-0">
+                    <div className="text-left xl:text-right">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Lãi/Lỗ Thực tế</p>
-                    <p className={`text-xl font-black ${profit >= 0 ? 'text-[#148922]' : 'text-red-600'}`}>
+                    <p className={`text-lg sm:text-xl font-black break-words ${profit >= 0 ? 'text-[#148922]' : 'text-red-600'}`}>
                       {profit >= 0 ? '+' : ''}{fmt(profit)}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 mt-2">
+                    <div className="flex items-center xl:justify-end gap-2 mt-1">
                     <button 
                       onClick={() => openTransactionModal({ id: project.id, name: project.name })}
-                      className="px-4 py-2 bg-[#ECFDF5] text-[#148922] text-xs font-bold rounded-xl hover:bg-[#D1FAE5] transition-colors flex items-center gap-1"
+                      className="w-full xl:w-auto px-4 py-2 bg-[#ECFDF5] text-[#148922] text-xs font-bold rounded-xl hover:bg-[#D1FAE5] transition-colors flex items-center justify-center gap-1"
                     >
                       <Plus className="w-3 h-3" /> Ghi nhận Thu/Chi
                     </button>
                   </div>
                 </div>
               </div>
-            );
+            </div>
+            );  
           })}
         </div>
       )}

@@ -1,26 +1,65 @@
-﻿import { create } from 'zustand';
+import { create } from 'zustand';
 import {
   Project,
   Customer,
   Employee,
   ApprovalRequest,
   Contract,
-  ProjectStatus,
   PersonnelRequest,
-  CashFlowEntry
+  CashFlowEntry,
+  PayrollPeriod,
+  AppRole,
+  Department,
+  EmployeeCost,
 } from '../types';
+import { DEPARTMENTS_SEED, buildInitialEmployees } from '../data/companyDirectorySeed';
+
+function buildPayrollDemoCosts(employees: Employee[]): EmployeeCost[] {
+  const picks = (['e1', 'e2', 'e3'] as const)
+    .map((id) => employees.find((e) => e.id === id))
+    .filter((e): e is Employee => Boolean(e));
+  const templates = [
+    { allowances: 2_000_000, ot: 500_000 },
+    { allowances: 2_000_000, ot: 0 },
+    { allowances: 1_500_000, ot: 300_000 },
+  ];
+  return picks.map((e, i) => {
+    const basic = e.baseSalary ?? 0;
+    const { allowances, ot } = templates[i] ?? templates[0];
+    const bonus = 0;
+    const gross = basic + allowances + bonus + ot;
+    const tax = Math.round(gross * 0.055);
+    const netPay = gross - tax;
+    return {
+      id: `ec${i + 1}`,
+      employeeId: e.id,
+      employeeName: e.name,
+      role: String(e.jobTitle || e.role),
+      basicSalary: basic,
+      allowances,
+      bonus,
+      ot,
+      tax,
+      grossSalary: gross,
+      netPay,
+    };
+  });
+}
+
+const seedEmployees = buildInitialEmployees();
 
 interface StoreState {
   projects: Project[];
   customers: Customer[];
   employees: Employee[];
+  departments: Department[];
   contracts: Contract[];
   approvalRequests: ApprovalRequest[];
   personnelRequests: PersonnelRequest[];
   cashFlowEntries: CashFlowEntry[];
-  currentUser: { id: string; name: string; role: 'PM' | 'CEO' | 'Lead' | 'Employee' };
+  payrollPeriods: PayrollPeriod[];
+  currentUser: { id: string; name: string; role: AppRole };
 
-  // Actions
   addProject: (project: Project) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
   addApprovalRequest: (request: ApprovalRequest) => void;
@@ -29,6 +68,17 @@ interface StoreState {
   updatePersonnelRequest: (id: string, updates: Partial<PersonnelRequest>) => void;
   addCashFlowEntry: (entry: CashFlowEntry) => void;
   setProjects: (projects: Project[]) => void;
+  updateEmployee: (id: string, updates: Partial<Employee>) => void;
+  addEmployee: (employee: Employee) => void;
+  removeEmployee: (id: string) => void;
+  addDepartment: (department: Department) => void;
+  updateDepartment: (id: string, updates: Partial<Department>) => void;
+  removeDepartment: (id: string) => void;
+  updateBaseSalary: (personnelId: string, amount: number) => void;
+  updatePayrollPeriod: (id: string, updates: Partial<PayrollPeriod>) => void;
+  setPayrollPeriods: (periods: PayrollPeriod[] | ((prev: PayrollPeriod[]) => PayrollPeriod[])) => void;
+  /** Chốt kỳ lương: tạo CashFlowEntry lương (Auto) */
+  confirmPayrollPeriod: (periodId: string) => void;
 }
 
 export const useStore = create<StoreState>((set) => ({
@@ -53,7 +103,8 @@ export const useStore = create<StoreState>((set) => ({
           allocation: 50,
           startDate: '2026-01-01',
           endDate: '2026-12-31',
-          status: 'Active'
+          status: 'Active',
+          approvalStatus: 'Approved'
         },
         {
           id: 'm2',
@@ -63,7 +114,19 @@ export const useStore = create<StoreState>((set) => ({
           allocation: 100,
           startDate: '2026-01-01',
           endDate: '2026-06-30',
-          status: 'Active'
+          status: 'Active',
+          approvalStatus: 'Approved'
+        },
+        {
+          id: 'm-demo-pend',
+          employeeId: 'e5',
+          projectId: '1',
+          role: 'Designer',
+          allocation: 20,
+          startDate: '2026-03-01',
+          endDate: '2026-12-31',
+          status: 'Active',
+          approvalStatus: 'Pending'
         }
       ],
       costPlan: [
@@ -76,9 +139,22 @@ export const useStore = create<StoreState>((set) => ({
       margin: 38.46,
       actualIncome: 650000000,
       actualExpense: 400000000,
+      sprints: [
+        {
+          id: 'sprint-alpha-1',
+          projectId: '1',
+          name: 'Sprint 1 — Khởi tạo',
+          sprintNo: 1,
+          startDate: '2026-01-15',
+          endDate: '2026-01-31',
+          status: 'Active',
+          goal: 'UI Dashboard + API dự án',
+        },
+      ],
       tasks: [
         {
           id: 'task-1',
+          sprintId: 'sprint-alpha-1',
           title: 'Thiết kế màn hình Dashboard',
           description: 'Thiết kế UI/UX cho màn hình tổng quan tài chính và dự án.',
           priority: 'Cao',
@@ -96,6 +172,7 @@ export const useStore = create<StoreState>((set) => ({
         },
         {
           id: 'task-2',
+          sprintId: 'sprint-alpha-1',
           title: 'Build API quản lý dự án',
           description: 'Xây dựng các endpoint CRUD cho dự án, sprint và task.',
           priority: 'Cao',
@@ -188,7 +265,7 @@ export const useStore = create<StoreState>((set) => ({
       actualExpense: 280000000,
       tasks: [
         { id: 'task-3', title: 'Thiết kế luồng đặt phòng', description: 'Wireframe + high-fidelity cho luồng booking 3 bước.', priority: 'Cao', type: 'Task', status: 'In Progress', estimatedHours: 20, actualHours: 14, completionPercent: 70, dueDate: '2026-02-20', position: 1, commentCount: 2, assigneeId: 'e5',  startDate: '2026-02-15' },
-        { id: 'task-4', title: 'API tích hợp cổng thanh toán', description: 'Kết nối VNPay/Momo cho module thanh toán.', priority: 'Cao', type: 'Feature', status: 'Backlog', estimatedHours: 32, actualHours: 0, completionPercent: 0, dueDate: '2026-02-27', position: 2, commentCount: 0, assigneeId: 'e2',  startDate: '2026-02-22' }
+        { id: 'task-4', title: 'API tích hợp cổng thanh toán', description: 'Kết nối VNPay/Momo cho module thanh toán.', priority: 'Cao', type: 'Feature', status: 'Todo', estimatedHours: 32, actualHours: 0, completionPercent: 0, dueDate: '2026-02-27', position: 2, commentCount: 0, assigneeId: 'e2',  startDate: '2026-02-22' }
       ],
       workSchedules: [
         { id: 'ws5', projectId: '2', employeeId: 'e5', taskId: 'task-3', date: '2026-01-18', type: 'Sáng', efficiency: 92, isProductive: true, notes: 'Finalize wireframe booking flow' },
@@ -224,8 +301,8 @@ export const useStore = create<StoreState>((set) => ({
       actualIncome: 0,
       actualExpense: 0,
       tasks: [
-        { id: 'task-5', title: 'Khảo sát dữ liệu nguồn', description: 'Đánh giá chất lượng và định dạng dữ liệu từ hệ thống Viettel.', priority: 'Cao', type: 'Research', status: 'Backlog', estimatedHours: 40, actualHours: 0, completionPercent: 0, dueDate: '2026-03-10', position: 1, commentCount: 0, assigneeId: 'e3',  startDate: '2026-03-01' },
-        { id: 'task-6', title: 'Setup môi trường ML', description: 'Cấu hình Docker, Jupyter, và kết nối AWS SageMaker.', priority: 'Trung bình', type: 'Task', status: 'Backlog', estimatedHours: 16, actualHours: 0, completionPercent: 0, dueDate: '2026-03-07', position: 2, commentCount: 0, assigneeId: 'e2',  startDate: '2026-03-01' }
+        { id: 'task-5', title: 'Khảo sát dữ liệu nguồn', description: 'Đánh giá chất lượng và định dạng dữ liệu từ hệ thống Viettel.', priority: 'Cao', type: 'Research', status: 'Todo', estimatedHours: 40, actualHours: 0, completionPercent: 0, dueDate: '2026-03-10', position: 1, commentCount: 0, assigneeId: 'e3',  startDate: '2026-03-01' },
+        { id: 'task-6', title: 'Setup môi trường ML', description: 'Cấu hình Docker, Jupyter, và kết nối AWS SageMaker.', priority: 'Trung bình', type: 'Task', status: 'Todo', estimatedHours: 16, actualHours: 0, completionPercent: 0, dueDate: '2026-03-07', position: 2, commentCount: 0, assigneeId: 'e2',  startDate: '2026-03-01' }
       ],
       workSchedules: []
     },
@@ -269,14 +346,8 @@ export const useStore = create<StoreState>((set) => ({
     { id: 'c2', name: 'Sun Group', email: 'info@sungroup.com.vn', phone: '024 3939 3399', address: 'Tầng 9, Tòa nhà Sun City, 13 Hai Bà Trung, Hoàn Kiếm, Hà Nội' },
     { id: 'c3', name: 'Viettel', email: 'support@viettel.com.vn', phone: '1800 8098', address: 'Số 1 Trần Hữu Đức, Mễ Trì 2, Nam Từ Liêm, Hà Nội' },
   ],
-  employees: [
-    { id: 'e1', name: 'Nguyễn Văn A', department: 'Software Engineering', status: 'Active', avatar: 'https://i.pravatar.cc/150?u=e1', role: 'PM' },
-    { id: 'e2', name: 'Trần Thị B', department: 'Software Engineering', status: 'Active', avatar: 'https://i.pravatar.cc/150?u=e2', role: 'Employee' },
-    { id: 'e3', name: 'Lê Văn C', department: 'QA/QC', status: 'Active', avatar: 'https://i.pravatar.cc/150?u=e3', role: 'Lead' },
-    { id: 'e4', name: 'Phạm Văn D', department: 'Product', status: 'Active', avatar: 'https://i.pravatar.cc/150?u=e4', role: 'Lead' },
-    { id: 'e5', name: 'Hoàng Thị E', department: 'Design', status: 'Active', avatar: 'https://i.pravatar.cc/150?u=e5', role: 'Employee' },
-    { id: 'e6', name: 'Trịnh Văn F', department: 'Executive', status: 'Active', avatar: 'https://i.pravatar.cc/150?u=e6', role: 'CEO' },
-  ],
+  employees: seedEmployees,
+  departments: DEPARTMENTS_SEED.map((d) => ({ ...d })),
   contracts: [
     {
       id: 'ct1',
@@ -292,17 +363,43 @@ export const useStore = create<StoreState>((set) => ({
       createdAt: new Date().toISOString()
     },
   ],
-  approvalRequests: [],
+  approvalRequests: [
+    {
+      id: 'apr-demo-1',
+      title: 'Duyệt nhân sự dự án Alpha — Hoàng Thị E',
+      type: 'PersonnelProject',
+      priority: 'Medium',
+      targetRole: 'CEO',
+      projectId: '1',
+      pendingMemberId: 'm-demo-pend',
+      status: 'Pending',
+      submittedBy: 'Trưởng phòng',
+      requesterId: 'e3',
+      submittedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    },
+  ],
   personnelRequests: [],
   cashFlowEntries: [
-    { id: '1', date: '15/03/2026', type: 'Thu nhập', category: 'Thanh toán dự án', amount: 45000000, project: 'Dự án Alpha', projectId: '1' },
-    { id: '2', date: '14/03/2026', type: 'Chi phí', category: 'Vật tư', amount: 12500000, project: 'Dự án Gamma', projectId: '3' },
-    { id: '3', date: '12/03/2026', type: 'Thu nhập', category: 'Tư vấn', amount: 8000000, project: 'Dự án Beta', projectId: '2' },
-    { id: '4', date: '10/03/2026', type: 'Chi phí', category: 'Lương', amount: 45810000, project: 'Chung' },
-    { id: '5', date: '08/03/2026', type: 'Chi phí', category: 'Thuê văn phòng', amount: 5000000, project: 'Chung' },
-    { id: '6', date: '05/03/2026', type: 'Thu nhập', category: 'Tạm ứng', amount: 25000000, project: 'Dự án Epsilon' },
+    { id: '1', date: '15/03/2026', type: 'Thu nhập', category: 'Thanh toán dự án', amount: 45000000, project: 'Dự án Alpha', projectId: '1', source: 'Manual' },
+    { id: '2', date: '14/03/2026', type: 'Chi phí', category: 'Vật tư', amount: 12500000, project: 'Dự án Gamma', projectId: '3', source: 'Manual' },
+    { id: '3', date: '12/03/2026', type: 'Thu nhập', category: 'Tư vấn', amount: 8000000, project: 'Dự án Beta', projectId: '2', source: 'Manual' },
+    { id: '4', date: '10/03/2026', type: 'Chi phí', category: 'Lương', amount: 45810000, project: 'Chung', source: 'Manual' },
+    { id: '5', date: '08/03/2026', type: 'Chi phí', category: 'Thuê văn phòng', amount: 5000000, project: 'Chung', source: 'Manual' },
+    { id: '6', date: '05/03/2026', type: 'Thu nhập', category: 'Tạm ứng', amount: 25000000, project: 'Dự án Epsilon', source: 'Manual' },
   ],
-  currentUser: { id: 'e1', name: 'Nguyễn Văn A', role: 'PM' }, // Default to PM for testing
+  payrollPeriods: [
+    {
+      id: 'p1',
+      month: '2026-03',
+      status: 'Open',
+      companyId: 'c1',
+      createdBy: 'e7',
+      employeeCosts: buildPayrollDemoCosts(seedEmployees),
+    },
+  ],
+  /** Mặc định: Admin — toàn quyền (demo). Đổi sang e1/e6/… để test vai trò nghiệp vụ. */
+  currentUser: { id: 'admin', name: 'Quản trị hệ thống', role: 'Admin' },
 
   addProject: (project) => set((state) => ({ projects: [project, ...state.projects] })),
   updateProject: (id, updates) => set((state) => ({
@@ -318,5 +415,85 @@ export const useStore = create<StoreState>((set) => ({
   })),
   addCashFlowEntry: (entry) => set((state) => ({ cashFlowEntries: [entry, ...state.cashFlowEntries] })),
   setProjects: (projects) => set({ projects }),
+  updateEmployee: (id, updates) =>
+    set((state) => ({
+      employees: state.employees.map((e) => {
+        if (e.id !== id) return e;
+        const merged = { ...e, ...updates };
+        if (updates.departmentId !== undefined) {
+          if (merged.departmentId) {
+            const dept = state.departments.find((d) => d.id === merged.departmentId);
+            merged.department = dept?.name ?? merged.department;
+          } else {
+            merged.department = 'Vãng lai';
+          }
+        }
+        return merged;
+      }),
+    })),
+  addEmployee: (employee) => set((state) => ({ employees: [...state.employees, employee] })),
+  removeEmployee: (id) =>
+    set((state) => {
+      if (id === 'admin') return state;
+      return {
+        employees: state.employees.filter((e) => e.id !== id),
+        departments: state.departments.map((d) => (d.headId === id ? { ...d, headId: '' } : d)),
+      };
+    }),
+  addDepartment: (department) => set((state) => ({ departments: [department, ...state.departments] })),
+  updateDepartment: (id, updates) =>
+    set((state) => {
+      const departments = state.departments.map((d) => (d.id === id ? { ...d, ...updates } : d));
+      const dept = departments.find((d) => d.id === id);
+      const employees =
+        dept && updates.name !== undefined
+          ? state.employees.map((e) =>
+              e.departmentId === id ? { ...e, department: dept.name } : e
+            )
+          : state.employees;
+      return { departments, employees };
+    }),
+  removeDepartment: (id) =>
+    set((state) => ({
+      departments: state.departments.filter((d) => d.id !== id),
+      employees: state.employees.map((e) =>
+        e.departmentId === id ? { ...e, departmentId: undefined, department: 'Vãng lai' } : e
+      ),
+    })),
+  updateBaseSalary: (personnelId, amount) =>
+    set((state) => ({
+      employees: state.employees.map((e) => (e.id === personnelId ? { ...e, baseSalary: amount } : e)),
+    })),
+  updatePayrollPeriod: (id, updates) =>
+    set((state) => ({
+      payrollPeriods: state.payrollPeriods.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+    })),
+  setPayrollPeriods: (periods) =>
+    set((state) => ({
+      payrollPeriods: typeof periods === 'function' ? periods(state.payrollPeriods) : periods,
+    })),
+  confirmPayrollPeriod: (periodId) =>
+    set((state) => {
+      const period = state.payrollPeriods.find((p) => p.id === periodId);
+      if (!period || period.status === 'Locked') return state;
+      const totalNet = period.employeeCosts.reduce((s, ec) => s + ec.netPay, 0);
+      const entry: CashFlowEntry = {
+        id: `cf-payroll-${periodId}-${Date.now()}`,
+        date: new Date().toLocaleDateString('vi-VN'),
+        type: 'Chi phí',
+        category: 'Lương nhân sự',
+        amount: totalNet,
+        project: 'Chung',
+        source: 'Auto',
+        description: `Tổng lương kỳ ${period.month} (chốt)`,
+        createdBy: state.currentUser.id,
+      };
+      return {
+        payrollPeriods: state.payrollPeriods.map((p) =>
+          p.id === periodId ? { ...p, status: 'Locked' as const } : p
+        ),
+        cashFlowEntries: [entry, ...state.cashFlowEntries],
+      };
+    }),
 }));
 

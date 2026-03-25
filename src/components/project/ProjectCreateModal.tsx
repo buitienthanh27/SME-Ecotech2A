@@ -17,9 +17,8 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { useStore } from '../../store/useStore';
-import { Project, ProjectMember, ProjectCostItem, ProjectStatus } from '../../types';
+import { Project, ProjectMember, ProjectCostItem, ProjectStatus, Employee } from '../../types';
 import { Modal, Btn, Badge, StatusBadge } from '../ui';
-import { INITIAL_DEPARTMENTS, INITIAL_PERSONNEL } from '../../pages/Personnel';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -41,7 +40,7 @@ interface Props {
 }
 
 export const ProjectCreateModal: React.FC<Props> = ({ isOpen, onClose, initialData }) => {
-  const { customers, employees, contracts, addProject, updateProject, currentUser } = useStore();
+  const { customers, employees, departments, contracts, addProject, updateProject, currentUser } = useStore();
   const [step, setStep] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -201,6 +200,7 @@ export const ProjectCreateModal: React.FC<Props> = ({ isOpen, onClose, initialDa
               formData={formData}
               setFormData={setFormData}
               employees={employees}
+              departments={departments}
             />
           )}
           {step === 3 && (
@@ -355,12 +355,12 @@ function Step1Info({ formData, setFormData, errors, customers, contracts }: any)
   );
 }
 
-function Step2Personnel({ formData, setFormData, employees }: any) {
+function Step2Personnel({ formData, setFormData, employees, departments }: any) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredEmployees = INITIAL_PERSONNEL.filter((e: any) => {
-    // Hiển thị tất cả nhân sự có Id là headId trong INITIAL_DEPARTMENTS
-    const isHead = INITIAL_DEPARTMENTS.some(d => d.headId === e.id);
+  const filteredEmployees = employees.filter((e: Employee) => {
+    if (e.id === 'admin' || e.status !== 'Active') return false;
+    const isHead = departments.some((d: { headId: string }) => d.headId === e.id);
     if (!isHead) return false;
 
     const matchesSearch = e.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -414,11 +414,13 @@ function Step2Personnel({ formData, setFormData, employees }: any) {
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-[#ECFDF5] flex items-center justify-center text-[#148922] font-black text-[10px]">
-                  {e.avatar?.length < 3 ? e.avatar : e.name[0]}
+                  {e.name[0]}
                 </div>
                 <div>
                   <p className="text-[13px] font-bold text-[#1A202C]">{e.name}</p>
-                  <p className="text-[11px] text-[#718096] whitespace-pre-wrap">Trưởng {INITIAL_DEPARTMENTS.find(d => d.headId === e.id)?.name || ''}</p>
+                  <p className="text-[11px] text-[#718096] whitespace-pre-wrap">
+                    Trưởng {departments.find((d: { headId: string }) => d.headId === e.id)?.name || ''}
+                  </p>
                 </div>
               </div>
               <Plus className="w-4 h-4 text-[#CBD5E1] group-hover:text-[#148922]" />
@@ -433,17 +435,19 @@ function Step2Personnel({ formData, setFormData, employees }: any) {
         <h4 className="text-[11px] font-bold text-[#718096] uppercase tracking-wider pl-1">Trưởng phòng / Quản lý ({formData.members.length})</h4>
         <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
           {formData.members.map((m: any) => {
-            const emp = INITIAL_PERSONNEL.find((e: any) => e.id === m.employeeId);
+            const emp = employees.find((e: Employee) => e.id === m.employeeId);
             return (
               <div key={m.employeeId} className="p-3 bg-[#F8FAFC] rounded-[14px] border border-[#E2E8F0]">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-[#148922] flex items-center justify-center text-white font-black text-[10px]">
-                      {emp?.avatar?.length < 3 ? emp?.avatar : emp?.name[0]}
+                      {emp?.name?.[0] || '?'}
                     </div>
                     <div className="flex flex-col justify-center">
                       <span className="text-[13px] font-bold text-[#1A202C]">{emp?.name}</span>
-                      <span className="text-[11px] text-[#718096]">Trưởng {INITIAL_DEPARTMENTS.find(d => d.headId === emp?.id)?.name || ''}</span>
+                      <span className="text-[11px] text-[#718096]">
+                        Trưởng {departments.find((d: { headId: string }) => d.headId === emp?.id)?.name || ''}
+                      </span>
                     </div>
                   </div>
                   <button onClick={() => removeMember(m.employeeId)} className="text-[#A0AEC0] hover:text-[#EF4444] p-1"><X className="w-3.5 h-3.5" /></button>

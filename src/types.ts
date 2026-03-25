@@ -1,4 +1,7 @@
-﻿export type ProjectStatus = 'Đang thực hiện' | 'Đã hoàn thành' | 'Tạm dừng' | 'Đang chờ' | 'Draft' | 'Chờ duyệt' | 'Active';
+/** Vai trò đăng nhập (mock trong store) — khớp ma trận phân quyền */
+export type AppRole = 'Admin' | 'CEO' | 'PM' | 'Lead' | 'Accountant' | 'HR' | 'Employee';
+
+export type ProjectStatus = 'Đang thực hiện' | 'Đã hoàn thành' | 'Tạm dừng' | 'Đang chờ' | 'Draft' | 'Chờ duyệt' | 'Active';
 
 export interface ProjectCostItem {
   id: string;
@@ -8,23 +11,33 @@ export interface ProjectCostItem {
   notes: string;
 }
 
+/** Thành viên dự án — `employeeId` tương đương personnel trong spec */
 export interface ProjectMember {
   id: string;
   employeeId: string;
   projectId: string;
   role: string;
-  allocation: number; // % distribution
+  allocation: number; // % distribution (PB)
   startDate: string;
   endDate: string;
   status: 'Active' | 'Inactive';
   inactiveReason?: string;
+  /** Chỉ Lead cần CEO duyệt; PM/CEO thêm trực tiếp = Approved */
+  approvalStatus?: 'Pending' | 'Approved' | 'Rejected';
+}
+
+/** Dropdown giao task: chỉ Active + đã được CEO duyệt (hoặc chưa có field = coi như duyệt) */
+export function isMemberAssignableForTask(m: ProjectMember): boolean {
+  if (m.status !== 'Active') return false;
+  if (m.approvalStatus === 'Pending' || m.approvalStatus === 'Rejected') return false;
+  return true;
 }
 
 export interface Project {
   id: string;
   name: string;
   code: string;
-  customerId: string;
+  customerId: string | null;
   contractId?: string;
   startDate: string;
   endDate: string;
@@ -60,10 +73,12 @@ export interface Customer {
 export interface ApprovalRequest {
   id: string;
   title: string;
-  type: 'ProjectPlan' | 'Expense' | 'Salary' | 'Asset';
+  type: 'ProjectPlan' | 'Expense' | 'Salary' | 'Asset' | 'PersonnelProject';
   priority: 'High' | 'Medium' | 'Low';
   targetRole: 'CEO' | 'Manager';
   projectId?: string;
+  /** Thành viên dự án chờ duyệt — gắn với ProjectMember.id */
+  pendingMemberId?: string;
   amount?: number;
   status: 'Pending' | 'Approved' | 'Rejected';
   submittedBy: string;
@@ -81,7 +96,15 @@ export interface Employee {
   department: string;
   avatar?: string;
   status: 'Active' | 'Inactive';
-  role: 'CEO' | 'PM' | 'Lead' | 'Employee';
+  role: AppRole;
+  /** Lương cơ bản (VND) — chỉ HR sửa qua store */
+  baseSalary?: number;
+  jobTitle?: string;
+  email?: string;
+  phone?: string;
+  departmentId?: string;
+  employmentStatus?: 'Đang làm việc' | 'Đang nghỉ phép' | 'Đã nghỉ việc';
+  projectLabels?: string[];
 }
 
 export interface ProgressHistoryEntry {
@@ -121,6 +144,20 @@ export interface Personnel {
   departmentId?: string;
 }
 
+/** Dòng hiển thị trang Nhân sự — map 1-1 với Employee trong store */
+export type PersonnelTableRow = {
+  id: string;
+  name: string;
+  role: string;
+  salary: number;
+  status: 'Đang làm việc' | 'Đang nghỉ phép' | 'Đã nghỉ việc';
+  departmentId: string;
+  email: string;
+  phone: string;
+  avatar: string;
+  projects: string[];
+};
+
 export interface CashFlowEntry {
   id: string;
   date: string;
@@ -128,12 +165,16 @@ export interface CashFlowEntry {
   category: string;
   amount: number;
   project?: string;
-  projectId?: string; // Tying explicitly to project ID
+  projectId?: string;
+  description?: string;
+  source?: 'Auto' | 'Manual';
+  createdBy?: string;
 }
 
 export type TaskPriority = 'Cao' | 'Trung bình' | 'Thấp';
 export type TaskType = 'Feature' | 'Bug' | 'Task' | 'Research';
-export type TaskStatus = 'Backlog' | 'In Progress' | 'In Review' | 'Done' | 'Closed';
+/** Khớp spec ECOTECH v2.2 — Kanban 4 cột (không có Blocked; Backlog sprint = Todo + sprintId null ở UI sau) */
+export type TaskStatus = 'Todo' | 'In Progress' | 'Review' | 'Done';
 
 export interface Sprint {
   id: string;
@@ -277,9 +318,10 @@ export interface EmployeeCost {
 export interface PayrollPeriod {
   id: string;
   month: string; // YYYY-MM
-  status: 'Open' | 'Locked';
+  status: 'Open' | 'Locked' | 'Draft' | 'Confirmed';
   companyId: string;
   employeeCosts: EmployeeCost[];
+  createdBy?: string;
 }
 
 export type ContractStatus = 'Draft' | 'Sent' | 'Signed' | 'Active' | 'Completed' | 'Cancelled';

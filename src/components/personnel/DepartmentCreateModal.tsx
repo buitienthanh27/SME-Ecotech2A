@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Building2, UserCircle2, AlignLeft, X, Search, SearchIcon, Plus } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Department, Personnel } from '../../types';
+import { Department, Employee } from '../../types';
 import { Modal, Btn } from '../ui';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
   onClose: () => void;
   onCreate: (department: Department, memberIds: string[]) => void;
   editingDepartment?: Department | null;
-  availablePersonnel: Personnel[];
+  availablePersonnel: Employee[];
   currentMembers: string[];
 }
 
@@ -73,9 +73,12 @@ export const DepartmentCreateModal: React.FC<Props> = ({
     !selectedMemberIds.includes(p.id)
   );
 
-  const filteredSearchResults = availableForSelection.filter(p =>
-    p.name.toLowerCase().includes(memberSearchTerm.toLowerCase()) ||
-    p.role.toLowerCase().includes(memberSearchTerm.toLowerCase())
+  const displayRole = (e: Employee) => e.jobTitle || e.role;
+
+  const filteredSearchResults = availableForSelection.filter(
+    (p) =>
+      p.name.toLowerCase().includes(memberSearchTerm.toLowerCase()) ||
+      displayRole(p).toLowerCase().includes(memberSearchTerm.toLowerCase())
   );
 
   useEffect(() => {
@@ -124,10 +127,10 @@ export const DepartmentCreateModal: React.FC<Props> = ({
             >
               <option value="" disabled>Chọn nhân sự...</option>
               {availablePersonnel
-                .filter(p => !p.departmentId || p.departmentId === editingDepartment?.id)
-                .map(person => (
+                .filter((p) => !p.departmentId || p.departmentId === editingDepartment?.id)
+                .map((person) => (
                   <option key={person.id} value={person.id}>
-                    {person.name} ({person.role})
+                    {person.name} ({displayRole(person)})
                   </option>
                 ))}
             </select>
@@ -176,7 +179,7 @@ export const DepartmentCreateModal: React.FC<Props> = ({
                         </div>
                         <div>
                           <p className="text-[14px] font-bold text-[#1A202C]">{person.name}</p>
-                          <p className="text-[11px] text-[#718096] uppercase font-bold tracking-tight">{person.role}</p>
+                          <p className="text-[11px] text-[#718096] uppercase font-bold tracking-tight">{displayRole(person)}</p>
                         </div>
                         <Plus className="w-4 h-4 ml-auto text-[#CBD5E1] group-hover:text-[#148922]" />
                       </button>
@@ -202,14 +205,16 @@ export const DepartmentCreateModal: React.FC<Props> = ({
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-[6px] flex items-center justify-center font-bold text-[10px] ${
-                      isHead ? 'bg-[#148922] text-white' : 'bg-[#F1F5F9] text-[#718096]'
-                    }`}>
-                      {person.avatar}
+                    <div
+                      className={`w-8 h-8 rounded-[6px] flex items-center justify-center font-bold text-[10px] ${
+                        isHead ? 'bg-[#148922] text-white' : 'bg-[#F1F5F9] text-[#718096]'
+                      }`}
+                    >
+                      {person.name.charAt(0)}
                     </div>
                     <div>
                       <p className={`text-[13px] font-bold ${isHead ? 'text-[#148922]' : 'text-[#1A202C]'}`}>{person.name}</p>
-                      <p className="text-[11px] text-[#718096] whitespace-nowrap">{person.role}</p>
+                      <p className="text-[11px] text-[#718096] whitespace-nowrap">{displayRole(person)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

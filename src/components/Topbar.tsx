@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bell, Search, X, ChevronDown, Settings, LogOut, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useStore } from '../store/useStore';
 
 const NOTIFICATIONS = [
   { id: 1, title: 'Phê duyệt đang chờ', desc: 'Có 2 yêu cầu phê duyệt cần xử lý', time: '5 phút', unread: true, link: '/approvals' },
@@ -8,8 +9,26 @@ const NOTIFICATIONS = [
   { id: 3, title: 'Dự án Alpha', desc: 'Vượt ngân sách 15% tháng này', time: '3 giờ', unread: false, link: '/projects' },
 ];
 
+const roleLabel: Record<string, string> = {
+  Admin: 'Quản trị (toàn quyền)',
+  CEO: 'CEO',
+  PM: 'PM',
+  Lead: 'Lead',
+  Accountant: 'Kế toán',
+  HR: 'Nhân sự',
+  Employee: 'Nhân viên',
+};
+
 export function Topbar() {
   const navigate = useNavigate();
+  const currentUser = useStore((s) => s.currentUser);
+  const initials =
+    currentUser.name
+      .split(/\s+/)
+      .map((w) => w[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'U';
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -104,11 +123,13 @@ export function Topbar() {
             className="flex items-center gap-2.5 rounded-[8px] hover:bg-[#F8FAFC] px-2 py-1.5 transition-colors"
           >
             <div className="w-8 h-8 bg-[#148922] rounded-[8px] flex items-center justify-center text-white font-bold text-[12px]">
-              QT
+              {initials}
             </div>
             <div className="text-left hidden sm:block">
-              <p className="text-[13px] font-semibold text-[#1A202C] leading-tight">Quản trị viên</p>
-              <p className="text-[11px] text-[#718096] leading-tight">Quản lý Tài chính</p>
+              <p className="text-[13px] font-semibold text-[#1A202C] leading-tight">{currentUser.name}</p>
+              <p className="text-[11px] text-[#718096] leading-tight">
+                {roleLabel[currentUser.role] ?? currentUser.role}
+              </p>
             </div>
             <ChevronDown className={`w-4 h-4 text-[#718096] transition-transform hidden sm:block ${userOpen ? 'rotate-180' : ''}`} />
           </button>
@@ -116,8 +137,10 @@ export function Topbar() {
           {userOpen && (
             <div className="absolute right-0 top-full mt-2 w-52 bg-white border border-[#E2E8F0] rounded-[12px] shadow-lg z-50 overflow-hidden slide-in-right">
               <div className="px-4 py-3 border-b border-[#E2E8F0]">
-                <p className="text-[13px] font-bold text-[#1A202C]">Quản trị viên</p>
-                <p className="text-[11px] text-[#718096]">admin@ecotech.com</p>
+                <p className="text-[13px] font-bold text-[#1A202C]">{currentUser.name}</p>
+                <p className="text-[11px] text-[#718096]">
+                  {roleLabel[currentUser.role] ?? currentUser.role} · admin@ecotech.com
+                </p>
               </div>
               <div className="p-1">
                 <button onClick={() => { navigate('/settings'); setUserOpen(false); }} className="flex items-center gap-2.5 w-full px-3 py-2 rounded-[8px] text-[13px] text-[#4A5568] font-medium hover:bg-[#F8FAFC] transition-colors">

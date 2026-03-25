@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Plus, 
   TrendingUp, 
@@ -15,6 +15,7 @@ import {
 import { TransactionCreateModal } from '../components/cashflow/TransactionCreateModal';
 import { PageHeader, FilterBar, KPICard, DataTable, StatusBadge, Btn, showToast, EmptyState } from '../components/ui';
 import { useStore } from '../store/useStore';
+import { canCreateCashFlowEntry } from '../lib/permissions';
 
 const INITIAL_CASHFLOW = [
   { id: '1', date: '15/03/2026', type: 'Thu nhập', category: 'Thanh toán dự án', amount: 45000000, project: 'Dự án Alpha', status: 'Đã duyệt' },
@@ -28,18 +29,36 @@ const INITIAL_CASHFLOW = [
 const fmt = (n: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(n);
 
 export function CashFlow() {
-  const { projects, updateProject } = useStore();
+  const { projects, updateProject, cashFlowEntries, addCashFlowEntry, currentUser } = useStore();
   const [activeTab, setActiveTab] = useState<'all' | 'projects'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [cashFlowList, setCashFlowList] = useState(INITIAL_CASHFLOW);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [prefilledProject, setPrefilledProject] = useState<{id: string, name: string} | undefined>();
+  const [prefilledProject, setPrefilledProject] = useState<{ id: string; name: string } | undefined>();
   const [typeFilter, setTypeFilter] = useState('Tất cả loại');
 
+  const cashFlowList = useMemo(() => {
+    const rows = cashFlowEntries.map((e) => ({
+      id: e.id,
+      date: e.date,
+      type: e.type,
+      category: e.category,
+      amount: e.amount,
+      project:
+        (e as { project?: string }).project ??
+        projects.find((p) => p.id === e.projectId)?.name ??
+        'Chung',
+      projectId: e.projectId,
+      status: 'Đã duyệt' as const,
+      source: e.source,
+    }));
+    return rows.length ? rows : INITIAL_CASHFLOW;
+  }, [cashFlowEntries, projects]);
+
   const filteredEntries = useMemo(() => {
-    return cashFlowList.filter(item => {
-      const matchesSearch = item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           item.project.toLowerCase().includes(searchTerm.toLowerCase());
+    return cashFlowList.filter((item) => {
+      const matchesSearch =
+        item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        String(item.project).toLowerCase().includes(searchTerm.toLowerCase());
       const matchesType = typeFilter === 'Tất cả loại' || item.type === typeFilter;
       return matchesSearch && matchesType;
     });
@@ -47,22 +66,36 @@ export function CashFlow() {
 
   const stats = useMemo(() => {
     const income = cashFlowList
-      .filter(item => item.type === 'Thu nhập' && item.status === 'Đã duyệt')
+      .filter((item) => item.type === 'Thu nhập' && item.status === 'Đã duyệt')
       .reduce((sum, item) => sum + item.amount, 0);
     const expenses = cashFlowList
-      .filter(item => item.type === 'Chi phí' && item.status === 'Đã duyệt')
+      .filter((item) => item.type === 'Chi phí' && item.status === 'Đã duyệt')
       .reduce((sum, item) => sum + item.amount, 0);
     return { income, expenses, net: income - expenses };
   }, [cashFlowList]);
 
   const handleCreateTransaction = (newTransaction: any) => {
-    setCashFlowList(prev => [newTransaction, ...prev]);
-    
-    // Automatically update the project's actual income/expense if a projectId is provided
+    if (!canCreateCashFlowEntry(currentUser.role)) {
+      showToast.error('Chỉ Kế toán, CEO hoặc quản trị được ghi thu/chi.');
+      return;
+    }
+    addCashFlowEntry({
+      id: newTransaction.id,
+      date: newTransaction.date,
+      type: newTransaction.type,
+      category: newTransaction.category,
+      amount: newTransaction.amount,
+      project: newTransaction.project,
+      projectId: newTransaction.projectId,
+      source: 'Manual',
+      description: newTransaction.description,
+      createdBy: currentUser.id,
+    });
+
     if (newTransaction.projectId) {
-      const project = projects.find(p => p.id === newTransaction.projectId);
+      const project = projects.find((p) => p.id === newTransaction.projectId);
       if (project) {
-        const updatePayload: any = {};
+        const updatePayload: Record<string, number> = {};
         if (newTransaction.type === 'Thu nhập') {
           updatePayload.actualIncome = (project.actualIncome || 0) + newTransaction.amount;
         } else {
@@ -71,7 +104,7 @@ export function CashFlow() {
         updateProject(project.id, updatePayload);
       }
     }
-    
+
     showToast.success('Đã ghi lại giao dịch mới');
   };
 
@@ -208,7 +241,7 @@ export function CashFlow() {
         </>
       ) : (
         <div className="space-y-4">
-          {projects.map(project => {
+          {projects.map((project) => {
             const expectedExpense = project.costPlan?.reduce((sum, item) => sum + item.plannedAmount, 0) || 0;
             const actualIn = project.actualIncome || 0;
             const actualOut = project.actualExpense || 0;
@@ -274,11 +307,15 @@ export function CashFlow() {
         </div>
       )}
 
-      <TransactionCreateModal 
+      <TransactionCreateModal
         isOpen={isCreateModalOpen}
-        onClose={() => { setIsCreateModalOpen(false); setPrefilledProject(undefined); }}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setPrefilledProject(undefined);
+        }}
         onCreate={handleCreateTransaction}
         prefilledProject={prefilledProject}
+        projectsFromStore={projects.map((p) => ({ id: p.id, name: p.name }))}
       />
     </div>
   );

@@ -39,12 +39,12 @@ export function useSubstitution({ tasks, setTasks, addLog }: UseSubstitutionProp
 
       let updatedTasks = [...tasks];
 
-      if (originalTask.status === 'In Progress' || originalTask.status === 'In Review') {
-        // Step 1: Task gốc status -> "Closed"
+      if (originalTask.status === 'In Progress' || originalTask.status === 'Review') {
+        // Step 1: Task gốc → Done (bàn giao; giữ % để hiển thị ĐÃ BÀN GIAO)
         const progressAtHandover = originalTask.completionPercent;
         updatedTasks[taskIndex] = {
           ...originalTask,
-          status: 'Closed',
+          status: 'Done',
         };
 
         // Step 2: Tạo task MỚI (clone)
@@ -77,7 +77,7 @@ export function useSubstitution({ tasks, setTasks, addLog }: UseSubstitutionProp
         addLog(log);
 
       } else {
-        // Rule: Task "Backlog" hoặc "Todo": chuyển thẳng sang B (không cần clone)
+        // Rule: Task Todo: chuyển thẳng assignee (không clone)
         updatedTasks[taskIndex] = {
           ...originalTask,
           assigneeId: newAssigneeId,

@@ -14,7 +14,7 @@ const MOCK_PERSON_BONUSES: PerformanceBonus[] = [
   {
     id: 'pb-1',
     taskAssigneeId: 'ta-1',
-    employeeId: '1',
+    employeeId: 'e1',
     taskId: 'task-101',
     employeeCostId: 'ec-1',
     bonusAmount: 1200000,
@@ -27,7 +27,7 @@ const MOCK_PERSON_BONUSES: PerformanceBonus[] = [
   {
     id: 'pb-2',
     taskAssigneeId: 'ta-2',
-    employeeId: '1',
+    employeeId: 'e1',
     taskId: 'task-102',
     employeeCostId: 'ec-2',
     bonusAmount: 800000,
@@ -44,7 +44,8 @@ const fmt = (n: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', c
 export const PersonnelDetailModal: React.FC<Props> = ({ isOpen, onClose, person, departments }) => {
   if (!person) return null;
 
-  const bonuses = MOCK_PERSON_BONUSES.filter(b => b.employeeId === person.id);
+  const bonuses = MOCK_PERSON_BONUSES.filter((b) => b.employeeId === person.id);
+  const salaryBase = typeof person.salary === 'number' ? person.salary : 0;
   const department = departments.find(d => d.id === person.departmentId);
 
   return (
@@ -58,9 +59,17 @@ export const PersonnelDetailModal: React.FC<Props> = ({ isOpen, onClose, person,
       <div className="space-y-8">
         {/* Profile Header Block */}
         <div className="flex items-center gap-6 p-6 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[16px]">
-          <div className="w-24 h-24 bg-[#148922] rounded-[20px] flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-[#148922]/20">
-            {person.avatar}
-          </div>
+          {typeof person.avatar === 'string' && person.avatar.startsWith('http') ? (
+            <img
+              src={person.avatar}
+              alt=""
+              className="w-24 h-24 rounded-[20px] object-cover shadow-lg shadow-[#148922]/20"
+            />
+          ) : (
+            <div className="w-24 h-24 bg-[#148922] rounded-[20px] flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-[#148922]/20">
+              {person.avatar || person.name?.charAt(0) || '?'}
+            </div>
+          )}
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-1">
               <h3 className="text-[22px] font-bold text-[#1A202C]">{person.name}</h3>
@@ -123,7 +132,7 @@ export const PersonnelDetailModal: React.FC<Props> = ({ isOpen, onClose, person,
             <div className="grid grid-cols-2 gap-4">
               <div className="p-5 bg-[#ECFDF5] border border-[#D1FAE5] rounded-[16px]">
                 <p className="text-[11px] font-bold text-[#148922] uppercase mb-1">Thực lĩnh kỳ trước</p>
-                <p className="text-[20px] font-black text-[#148922]">{fmt(person.salary / 12)}</p>
+                <p className="text-[20px] font-black text-[#148922]">{fmt(salaryBase > 0 ? salaryBase / 12 : 0)}</p>
               </div>
               <div className="p-5 bg-blue-50 border border-blue-100 rounded-[16px]">
                 <p className="text-[11px] font-bold text-blue-600 uppercase mb-1">Hiệu suất tổng quát</p>

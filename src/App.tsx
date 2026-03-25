@@ -19,6 +19,7 @@ import { SprintReport } from './pages/SprintReport';
 import { Contracts } from './pages/Contracts';
 
 import { Toaster } from 'react-hot-toast';
+import { ProtectedRoute } from './components/ProtectedRoute';
 
 export default function App() {
   return (
@@ -26,17 +27,17 @@ export default function App() {
       <Toaster position="top-right" />
       <Routes>
         <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="contracts" element={<Contracts />} />
-          <Route path="projects" element={<Projects />} />
-          <Route path="projects/:id/board" element={<ProjectBoard />} />
-          <Route path="projects/:id/bonuses" element={<ProjectBonuses />} />
-          <Route path="projects/:id/sprint-report" element={<SprintReport />} />
-          <Route path="personnel" element={<Personnel />} />
-          <Route path="payroll" element={<Payroll />} />
-          <Route path="cashflow" element={<CashFlow />} />
-          <Route path="approvals" element={<Approvals />} />
-          <Route path="settings" element={<Settings />} />
+          <Route index element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="contracts" element={<ProtectedRoute><Contracts /></ProtectedRoute>} />
+          <Route path="projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+          <Route path="projects/:id/board" element={<ProtectedRoute><ProjectBoard /></ProtectedRoute>} />
+          <Route path="projects/:id/bonuses" element={<ProtectedRoute><ProjectBonuses /></ProtectedRoute>} />
+          <Route path="projects/:id/sprint-report" element={<ProtectedRoute><SprintReport /></ProtectedRoute>} />
+          <Route path="personnel" element={<ProtectedRoute><Personnel /></ProtectedRoute>} />
+          <Route path="payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
+          <Route path="cashflow" element={<ProtectedRoute><CashFlow /></ProtectedRoute>} />
+          <Route path="approvals" element={<ProtectedRoute><Approvals /></ProtectedRoute>} />
+          <Route path="settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         </Route>
       </Routes>
     </BrowserRouter>

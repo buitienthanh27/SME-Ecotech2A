@@ -1,88 +1,144 @@
-import React, { useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
-import { LayoutGrid, Type, AlertCircle, Clock, Calendar, Users, AlignLeft, Plus } from 'lucide-react';
-import { Task, TaskPriority, TaskType, ProjectMember } from '../../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { LayoutGrid, Type, AlertCircle, Calendar, Users, AlignLeft, Plus } from 'lucide-react';
+import { Task, TaskPriority, TaskType, ProjectMember, isMemberAssignableForTask } from '../../types';
 import { useStore } from '../../store/useStore';
-import { Modal, Btn } from '../ui';
+import { hasProjectManagerPrivileges } from '../../lib/permissions';
+import { Modal, Btn, showToast } from '../ui';
+import { sprintDateBoundsForTask } from '../../lib/dateBounds';
+
+export type SprintOption = { id: string; name: string; startDate: string; endDate: string };
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onCreate: (task: Task) => void;
-  sprintId: string;
   members: ProjectMember[];
+  sprints: SprintOption[];
+  projectStartDate: string;
+  projectEndDate: string;
+  /** Sprint gợi ý khi mở (vd. đang lọc đúng sprint đó) */
+  initialSprintId?: string;
 }
 
-export const TaskCreateModal: React.FC<Props> = ({ isOpen, onClose, onCreate, sprintId, members }) => {
-  const { id: projectId } = useParams();
-  const { currentUser, employees, projects } = useStore();
-  
+export const TaskCreateModal: React.FC<Props> = ({
+  isOpen,
+  onClose,
+  onCreate,
+  members,
+  sprints,
+  projectStartDate,
+  projectEndDate,
+  initialSprintId,
+}) => {
+  const { currentUser, employees } = useStore();
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('Trung bình');
   const [type, setType] = useState<TaskType>('Task');
-  const [estimatedHours, setEstimatedHours] = useState(8);
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
-  const [parentId, setParentId] = useState('');
+  const [chosenSprintId, setChosenSprintId] = useState('');
 
-  const projectTasks = useMemo(() => {
-    return projects.find(p => p.id === projectId || p.id === '1')?.tasks || [];
-  }, [projects, projectId]);
+  const boundsForSprint = useMemo(() => {
+    const sp = sprints.find((s) => s.id === chosenSprintId);
+    if (!sp) return { min: projectStartDate, max: projectEndDate };
+    return sprintDateBoundsForTask(projectStartDate, projectEndDate, sp.startDate, sp.endDate);
+  }, [chosenSprintId, sprints, projectStartDate, projectEndDate]);
 
   const filteredMembers = useMemo(() => {
-    // Exclude inactive members entirely
-    const activeMembers = members.filter(m => m.status === 'Active');
-    
+    const activeMembers = members.filter((m) => m.status === 'Active' && isMemberAssignableForTask(m));
+
     if (!currentUser) return activeMembers;
-    if (currentUser.role === 'PM' || currentUser.role === 'CEO') return activeMembers;
-    
+    if (hasProjectManagerPrivileges(currentUser.role)) return activeMembers;
+
     if (currentUser.role === 'Lead') {
-      const currentEmp = employees.find(e => e.id === currentUser.id);
-      return activeMembers.filter(m => {
-        const emp = employees.find(e => e.id === m.employeeId);
+      const currentEmp = employees.find((e) => e.id === currentUser.id);
+      return activeMembers.filter((m) => {
+        const emp = employees.find((e) => e.id === m.employeeId);
         return emp?.department === currentEmp?.department;
       });
     }
-    
-    return activeMembers.filter(m => m.employeeId === currentUser.id);
+
+    return activeMembers.filter((m) => m.employeeId === currentUser.id);
   }, [members, currentUser, employees]);
+
+  const applySprintDates = (sprintId: string) => {
+    const sp = sprints.find((s) => s.id === sprintId);
+    if (!sp) return;
+    const { min, max } = sprintDateBoundsForTask(
+      projectStartDate,
+      projectEndDate,
+      sp.startDate,
+      sp.endDate
+    );
+    setStartDate(min);
+    setDueDate(min);
+  };
+
+  useEffect(() => {
+    if (!isOpen || sprints.length === 0) return;
+    const preferred =
+      initialSprintId && sprints.some((s) => s.id === initialSprintId)
+        ? initialSprintId
+        : sprints[0].id;
+    setChosenSprintId(preferred);
+    applySprintDates(preferred);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ reset form khi mở modal
+  }, [isOpen, sprints, initialSprintId, projectStartDate, projectEndDate]);
 
   if (!isOpen) return null;
 
+  const dateMin = boundsForSprint.min;
+  const dateMax = boundsForSprint.max;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (sprints.length === 0) {
+      showToast.error('Dự án cần có ít nhất một Sprint để tạo task.');
+      return;
+    }
+    if (!chosenSprintId) {
+      showToast.error('Vui lòng chọn Sprint.');
+      return;
+    }
+    const start = startDate || dateMin;
+    const due = dueDate || start;
+    if (start < dateMin || start > dateMax || due < dateMin || due > dateMax) {
+      showToast.error('Ngày bắt đầu và hạn chót phải nằm trong timeline dự án và sprint đã chọn.');
+      return;
+    }
+    if (due < start) {
+      showToast.error('Hạn chót không được trước ngày bắt đầu.');
+      return;
+    }
+
     const newTask: Task = {
       id: `task-${Date.now()}`,
-      sprintId,
+      sprintId: chosenSprintId,
       title,
       description,
       priority,
       type,
-      status: 'Backlog',
-      estimatedHours,
+      status: 'Todo',
+      estimatedHours: 0,
       actualHours: 0,
       completionPercent: 0,
-      dueDate: dueDate || new Date().toISOString().split('T')[0],
+      dueDate: due,
       position: 0,
       commentCount: 0,
       assigneeId: assigneeId || undefined,
-      startDate: startDate || new Date().toISOString().split('T')[0],
-      parentId: parentId || undefined,
+      startDate: start,
     };
     onCreate(newTask);
     onClose();
-    // Reset form
     setTitle('');
     setDescription('');
     setPriority('Trung bình');
     setType('Task');
-    setEstimatedHours(8);
     setDueDate('');
-    setStartDate(new Date().toISOString().split('T')[0]);
     setAssigneeId('');
-    setParentId('');
   };
 
   return (
@@ -92,36 +148,77 @@ export const TaskCreateModal: React.FC<Props> = ({ isOpen, onClose, onCreate, sp
       title="Tạo Task mới"
       size="lg"
       footer={
-        <div className="flex gap-3 w-full">
-          <Btn variant="secondary" className="flex-1" onClick={onClose}>Hủy</Btn>
-          <Btn className="flex-[2]" onClick={handleSubmit as any} icon={Plus}>Tạo Task</Btn>
+        <div className="flex w-full gap-3">
+          <Btn variant="secondary" className="flex-1" onClick={onClose}>
+            Hủy
+          </Btn>
+          <Btn
+            className="flex-[2]"
+            onClick={handleSubmit as any}
+            icon={Plus}
+            disabled={sprints.length === 0}
+          >
+            Tạo Task
+          </Btn>
         </div>
       }
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-4">
+          {sprints.length === 0 ? (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+              Chưa có Sprint nào. Hãy dùng &quot;Quản lý Sprint&quot; để thêm sprint (trong timeline dự án) trước khi tạo
+              task.
+            </p>
+          ) : (
+            <div>
+              <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-[#718096]">
+                Sprint <span className="text-red-500">*</span>
+              </label>
+              <select
+                required
+                className="w-full rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-[14px] font-bold text-[#1A202C] focus:outline-none"
+                value={chosenSprintId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setChosenSprintId(id);
+                  applySprintDates(id);
+                }}
+              >
+                {sprints.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-[#94A3B8]">
+                Task phải thuộc một sprint; ngày bắt đầu / hạn chót phải nằm trong sprint (và trong dự án).
+              </p>
+            </div>
+          )}
+
           <div>
-            <label className="block text-[11px] font-bold text-[#718096] uppercase tracking-wider mb-2 flex items-center gap-2">
-              <Type className="w-3 h-3 text-[#148922]" /> Tiêu đề Task
+            <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#718096]">
+              <Type className="h-3 w-3 text-[#148922]" /> Tiêu đề Task
             </label>
-            <input 
+            <input
               required
               type="text"
               placeholder="Nhập tiêu đề công việc..."
-              className="w-full px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[12px] text-[14px] font-bold text-[#1A202C] focus:outline-none focus:border-[#148922] transition-all"
+              className="w-full rounded-[12px] border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-[14px] font-bold text-[#1A202C] transition-all focus:border-[#148922] focus:outline-none"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-[#718096] uppercase tracking-wider mb-2 flex items-center gap-2">
-              <AlignLeft className="w-3 h-3 text-[#148922]" /> Mô tả chi tiết
+            <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#718096]">
+              <AlignLeft className="h-3 w-3 text-[#148922]" /> Mô tả chi tiết
             </label>
-            <textarea 
+            <textarea
               rows={3}
               placeholder="Mô tả các yêu cầu và kết quả mong đợi..."
-              className="w-full px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[12px] text-[14px] font-medium text-[#1A202C] focus:outline-none focus:border-[#148922] transition-all resize-none"
+              className="w-full resize-none rounded-[12px] border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-[14px] font-medium text-[#1A202C] transition-all focus:border-[#148922] focus:outline-none"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
@@ -129,11 +226,11 @@ export const TaskCreateModal: React.FC<Props> = ({ isOpen, onClose, onCreate, sp
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-[#718096] uppercase tracking-wider mb-2 flex items-center gap-2">
-                <AlertCircle className="w-3 h-3 text-[#148922]" /> Ưu tiên
+              <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#718096]">
+                <AlertCircle className="h-3 w-3 text-[#148922]" /> Ưu tiên
               </label>
-              <select 
-                className="w-full px-4 py-2.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[8px] text-[14px] font-bold text-[#1A202C] focus:outline-none"
+              <select
+                className="w-full rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-[14px] font-bold text-[#1A202C] focus:outline-none"
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as TaskPriority)}
               >
@@ -143,11 +240,11 @@ export const TaskCreateModal: React.FC<Props> = ({ isOpen, onClose, onCreate, sp
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-[#718096] uppercase tracking-wider mb-2 flex items-center gap-2">
-                <LayoutGrid className="w-3 h-3 text-[#148922]" /> Loại Task
+              <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#718096]">
+                <LayoutGrid className="h-3 w-3 text-[#148922]" /> Loại Task
               </label>
-              <select 
-                className="w-full px-4 py-2.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[8px] text-[14px] font-bold text-[#1A202C] focus:outline-none"
+              <select
+                className="w-full rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-[14px] font-bold text-[#1A202C] focus:outline-none"
                 value={type}
                 onChange={(e) => setType(e.target.value as TaskType)}
               >
@@ -161,72 +258,49 @@ export const TaskCreateModal: React.FC<Props> = ({ isOpen, onClose, onCreate, sp
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-bold text-[#718096] uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Calendar className="w-3 h-3 text-[#148922]" /> Ngày bắt đầu
+              <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#718096]">
+                <Calendar className="h-3 w-3 text-[#148922]" /> Ngày bắt đầu
               </label>
-              <input 
+              <input
                 required
                 type="date"
-                className="w-full px-4 py-2.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[8px] text-[14px] font-bold text-[#1A202C] focus:outline-none"
+                min={dateMin}
+                max={dateMax}
+                className="w-full rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-[14px] font-bold text-[#1A202C] focus:outline-none"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-[#718096] uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Calendar className="w-3 h-3 text-[#148922]" /> Hạn chót
+              <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#718096]">
+                <Calendar className="h-3 w-3 text-[#148922]" /> Hạn chót
               </label>
-              <input 
+              <input
                 type="date"
-                className="w-full px-4 py-2.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[8px] text-[14px] font-bold text-[#1A202C] focus:outline-none"
+                min={dateMin}
+                max={dateMax}
+                className="w-full rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-[14px] font-bold text-[#1A202C] focus:outline-none"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[11px] font-bold text-[#718096] uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Clock className="w-3 h-3 text-[#148922]" /> Ước tính (giờ)
-              </label>
-              <input 
-                type="number"
-                className="w-full px-4 py-2.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[8px] text-[14px] font-bold text-[#1A202C] focus:outline-none"
-                value={estimatedHours}
-                onChange={(e) => setEstimatedHours(parseInt(e.target.value))}
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold text-[#718096] uppercase tracking-wider mb-2 flex items-center gap-2">
-                <LayoutGrid className="w-3 h-3 text-[#148922]" /> Task cha
-              </label>
-              <select 
-                className="w-full px-4 py-2.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[8px] text-[14px] font-bold text-[#1A202C] focus:outline-none"
-                value={parentId}
-                onChange={(e) => setParentId(e.target.value)}
-              >
-                <option value="">-- Không có --</option>
-                {projectTasks.filter(t => !t.parentId).map(t => (
-                  <option key={t.id} value={t.id}>{t.title}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
           <div>
-            <label className="block text-[11px] font-bold text-[#718096] uppercase tracking-wider mb-2 flex items-center gap-2">
-              <Users className="w-3 h-3 text-[#148922]" /> Người thực hiện
+            <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#718096]">
+              <Users className="h-3 w-3 text-[#148922]" /> Người thực hiện
             </label>
-            <select 
+            <select
               required
-              className="w-full px-4 py-2.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[8px] text-[14px] font-bold text-[#1A202C] focus:outline-none"
+              className="w-full rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-[14px] font-bold text-[#1A202C] focus:outline-none"
               value={assigneeId}
               onChange={(e) => setAssigneeId(e.target.value)}
             >
-              <option value="" disabled>-- Chọn người thực hiện --</option>
-              {filteredMembers.map(m => {
-                const empInfo = employees.find(e => e.id === m.employeeId);
+              <option value="" disabled>
+                -- Chọn người thực hiện --
+              </option>
+              {filteredMembers.map((m) => {
+                const empInfo = employees.find((e) => e.id === m.employeeId);
                 return (
                   <option key={m.id} value={m.employeeId}>
                     {empInfo?.name} ({m.role}) {empInfo?.department ? `- ${empInfo.department}` : ''}

@@ -44,8 +44,9 @@ export const TaskCard: React.FC<Props> = ({ task, isOverlay, onClick, isUpdated 
     'Research': 'bg-purple-50 text-purple-600',
   };
 
-  const isOverdue = isPast(new Date(task.dueDate)) && task.status !== 'Done' && task.status !== 'Closed';
-  const isClosed = task.status === 'Closed';
+  const isOverdue = isPast(new Date(task.dueDate)) && task.status !== 'Done';
+  /** Task gốc sau bàn giao: Done nhưng % &lt; 100 */
+  const isHandoffOriginal = task.status === 'Done' && (task.completionPercent ?? 0) < 100;
   const isCloned = !!task.clonedFromTaskId;
 
   if (isDragging && !isOverlay) {
@@ -62,7 +63,7 @@ export const TaskCard: React.FC<Props> = ({ task, isOverlay, onClick, isUpdated 
       className={clsx(
         "bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group relative",
         isOverlay && "shadow-xl border-[#148922]/20",
-        isClosed && "opacity-60 bg-gray-50 grayscale-[0.5]",
+        isHandoffOriginal && "opacity-60 bg-gray-50 grayscale-[0.5]",
         isUpdated && "ring-2 ring-emerald-500 ring-offset-2 animate-pulse"
       )}
     >
@@ -74,7 +75,7 @@ export const TaskCard: React.FC<Props> = ({ task, isOverlay, onClick, isUpdated 
             TIẾP NỐI
           </span>
         )}
-        {isClosed && (
+        {isHandoffOriginal && (
           <span className="bg-gray-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-sm">
             ĐÃ BÀN GIAO
           </span>

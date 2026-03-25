@@ -15,6 +15,8 @@ import {
   Receipt,
 } from 'lucide-react';
 import { useLayout } from './Layout';
+import { useStore } from '../store/useStore';
+import { canAccessRoute } from '../lib/permissions';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Bảng điều khiển', path: '/' },
@@ -29,6 +31,11 @@ const navItems = [
 
 export function Sidebar() {
   const { collapsed, setCollapsed } = useLayout();
+  const currentUser = useStore((s) => s.currentUser);
+  const role = currentUser?.role;
+  const visibleNav = navItems.filter((item) =>
+    role ? canAccessRoute(item.path === '/' ? '/' : item.path, role) : true
+  );
 
   return (
     <aside
@@ -50,7 +57,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto overflow-x-hidden">
-        {navItems.map(item => (
+        {visibleNav.map(item => (
           <NavLink
             key={item.path}
             to={item.path}

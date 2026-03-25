@@ -50,7 +50,7 @@ export const SprintReport: React.FC<Props> = ({
   
   const stats = useMemo(() => {
     const total = sprintTasks.length;
-    const done = sprintTasks.filter(t => t.status === 'Closed').length;
+    const done = sprintTasks.filter((t) => t.status === 'Done').length;
     const percent = total > 0 ? Math.round((done / total) * 100) : 0;
     
     const totalEst = sprintTasks.reduce((sum, t) => sum + (t.estimatedHours || 0), 0);
@@ -88,7 +88,7 @@ export const SprintReport: React.FC<Props> = ({
   const teamPerformance = useMemo(() => {
     return members.map(member => {
       const memberTasks = sprintTasks.filter(t => t.assigneeId === member.id);
-      const doneTasks = memberTasks.filter(t => t.status === 'Closed');
+      const doneTasks = memberTasks.filter((t) => t.status === 'Done');
       const totalHours = memberTasks.reduce((sum, t) => sum + (t.actualHours || 0), 0);
       
       const memberLogs = logs.filter(l => l.taskAssigneeId === member.id);
@@ -320,7 +320,7 @@ export const SprintReport: React.FC<Props> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F1F5F9]">
-                {sprintTasks.sort((a, b) => a.status === 'Closed' ? 1 : -1).map((task) => {
+                {sprintTasks.sort((a, b) => (a.status === 'Done' ? 1 : -1)).map((task) => {
                   const assignee = members.find(m => m.id === task.assigneeId);
                   return (
                     <tr key={task.id} className="hover:bg-[#F8FAFC] transition-colors">
@@ -351,8 +351,8 @@ export const SprintReport: React.FC<Props> = ({
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <Badge variant={task.status === 'Closed' ? 'success' : 'primary'}>
-                          {task.status === 'Closed' ? 'Hoàn thành' : 'Đang làm'}
+                        <Badge variant={task.status === 'Done' ? 'success' : 'primary'}>
+                          {task.status === 'Done' ? 'Hoàn thành' : 'Đang làm'}
                         </Badge>
                       </td>
                     </tr>

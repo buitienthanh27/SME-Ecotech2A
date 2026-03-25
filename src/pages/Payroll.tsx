@@ -14,13 +14,15 @@ import {
 } from 'lucide-react';
 import { PayrollPeriod, EmployeeCost, PerformanceBonus } from '../types';
 import { PageHeader, FilterBar, KPICard, DataTable, StatusBadge, Btn, showToast, ConfirmModal, EmptyState } from '../components/ui';
+import { useStore } from '../store/useStore';
+import { canConfirmPayroll } from '../lib/permissions';
 
 const MOCK_BONUSES: PerformanceBonus[] = [
   {
     id: 'b1',
     taskAssigneeId: 't1',
     taskId: 't1',
-    employeeId: '1',
+    employeeId: 'e1',
     employeeCostId: null,
     bonusAmount: 500000,
     bonusType: 'Xuất sắc',
@@ -33,7 +35,7 @@ const MOCK_BONUSES: PerformanceBonus[] = [
     id: 'b2',
     taskAssigneeId: 't3',
     taskId: 't3',
-    employeeId: '3',
+    employeeId: 'e3',
     employeeCostId: null,
     bonusAmount: 300000,
     bonusType: 'Chất lượng cao',
@@ -45,34 +47,46 @@ const MOCK_BONUSES: PerformanceBonus[] = [
 ];
 
 const MOCK_EMPLOYEE_COSTS: EmployeeCost[] = [
-  { id: 'ec1', employeeId: '1', employeeName: 'Nguyễn Văn A', role: 'Frontend Developer', basicSalary: 15000000, allowances: 2000000, bonus: 0, ot: 500000, tax: 1500000, grossSalary: 17500000, netPay: 16000000 },
-  { id: 'ec2', employeeId: '2', employeeName: 'Trần Thị B', role: 'Backend Developer', basicSalary: 16000000, allowances: 2000000, bonus: 0, ot: 0, tax: 1600000, grossSalary: 18000000, netPay: 16400000 },
-  { id: 'ec3', employeeId: '3', employeeName: 'Lê Văn C', role: 'UI/UX Designer', basicSalary: 14000000, allowances: 1500000, bonus: 0, ot: 300000, tax: 1400000, grossSalary: 15800000, netPay: 14400000 },
+  { id: 'ec1', employeeId: 'e1', employeeName: 'Nguyễn Văn A', role: 'Frontend Developer', basicSalary: 15000000, allowances: 2000000, bonus: 0, ot: 500000, tax: 1500000, grossSalary: 17500000, netPay: 16000000 },
+  { id: 'ec2', employeeId: 'e2', employeeName: 'Trần Thị B', role: 'Backend Developer', basicSalary: 16000000, allowances: 2000000, bonus: 0, ot: 0, tax: 1600000, grossSalary: 18000000, netPay: 16400000 },
+  { id: 'ec3', employeeId: 'e3', employeeName: 'Lê Văn C', role: 'UI/UX Designer', basicSalary: 14000000, allowances: 1500000, bonus: 0, ot: 300000, tax: 1400000, grossSalary: 15800000, netPay: 14400000 },
 ];
 
 const fmt = (n: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(n);
 
 export function Payroll() {
+  const payrollPeriods = useStore((s) => s.payrollPeriods);
+  const employees = useStore((s) => s.employees);
+  const setPayrollPeriods = useStore((s) => s.setPayrollPeriods);
+  const confirmPayrollPeriod = useStore((s) => s.confirmPayrollPeriod);
+  const currentUser = useStore((s) => s.currentUser);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [bonuses, setBonuses] = useState<PerformanceBonus[]>(MOCK_BONUSES);
-  const [periods, setPeriods] = useState<PayrollPeriod[]>([
-    {
-      id: 'p1',
-      month: '2026-03',
-      status: 'Open',
-      companyId: 'c1',
-      employeeCosts: MOCK_EMPLOYEE_COSTS
-    }
-  ]);
   const [selectedPeriodId, setSelectedPeriodId] = useState('p1');
   const [isLockModalOpen, setIsLockModalOpen] = useState(false);
 
-  const currentPeriod = useMemo(() => 
-    periods.find(p => p.id === selectedPeriodId), 
-  [periods, selectedPeriodId]);
+  const periods = payrollPeriods.length
+    ? payrollPeriods
+    : [
+        {
+          id: 'p1',
+          month: '2026-03',
+          status: 'Open' as const,
+          companyId: 'c1',
+          employeeCosts: MOCK_EMPLOYEE_COSTS,
+        },
+      ];
+
+  const currentPeriod = useMemo(
+    () => periods.find((p) => p.id === selectedPeriodId),
+    [periods, selectedPeriodId]
+  );
+
+  const periodLocked = currentPeriod?.status === 'Locked';
 
   const handleProcessPayroll = () => {
-    if (!currentPeriod || currentPeriod.status === 'Locked') return;
+    if (!currentPeriod || periodLocked) return;
 
     const currentMonth = currentPeriod.month;
     const pendingBonuses = bonuses.filter(b => 
@@ -114,34 +128,66 @@ export function Payroll() {
       return b;
     }));
 
-    setPeriods(prev => prev.map(p => p.id === selectedPeriodId ? { ...p, employeeCosts: updatedEmployeeCosts } : p));
+    setPayrollPeriods((prev) =>
+      prev.map((p) => (p.id === selectedPeriodId ? { ...p, employeeCosts: updatedEmployeeCosts } : p))
+    );
     showToast.success(`Đã xử lý ${pendingBonuses.length} khoản thưởng hiệu suất.`);
   };
 
   const handleLockPeriod = () => {
     if (!currentPeriod) return;
-    setPeriods(prev => prev.map(p => p.id === selectedPeriodId ? { ...p, status: 'Locked' } : p));
-    const linkedBonusIds = currentPeriod.employeeCosts.flatMap(ec => ec.projectBonuses?.map(b => b.id) || []);
-    setBonuses(prev => prev.map(b => linkedBonusIds.includes(b.id) ? { ...b, status: 'Locked' } : b));
-    showToast.success('Kỳ lương đã được khoá thành công.');
+    if (!canConfirmPayroll(currentUser.role)) {
+      showToast.error('Chỉ Kế toán hoặc CEO mới chốt bảng lương.');
+      setIsLockModalOpen(false);
+      return;
+    }
+    confirmPayrollPeriod(selectedPeriodId);
+    const linkedBonusIds = currentPeriod.employeeCosts.flatMap((ec) => ec.projectBonuses?.map((b) => b.id) || []);
+    setBonuses((prev) => prev.map((b) => (linkedBonusIds.includes(b.id) ? { ...b, status: 'Locked' as const } : b)));
+    showToast.success('Kỳ lương đã được chốt; đã ghi nhận dòng tiền lương (Auto).');
     setIsLockModalOpen(false);
   };
 
+  /** Đồng bộ lương cơ bản / tên / chức danh từ danh bạ nhân viên (kỳ Open) */
+  const costsSynced = useMemo(() => {
+    if (!currentPeriod) return [];
+    if (currentPeriod.status !== 'Open') return currentPeriod.employeeCosts;
+    return currentPeriod.employeeCosts.map((ec) => {
+      const emp = employees.find((e) => e.id === ec.employeeId);
+      if (!emp?.baseSalary) return ec;
+      const basicSalary = emp.baseSalary;
+      const grossSalary = basicSalary + ec.allowances + ec.bonus + ec.ot;
+      const tax = Math.round(grossSalary * 0.055);
+      const netPay = grossSalary - tax;
+      return {
+        ...ec,
+        employeeName: emp.name,
+        role: String(emp.jobTitle || emp.role),
+        basicSalary,
+        grossSalary,
+        tax,
+        netPay,
+      };
+    });
+  }, [currentPeriod, employees]);
+
   const filteredCosts = useMemo(() => {
     if (!currentPeriod) return [];
-    return currentPeriod.employeeCosts.filter(ec => 
-      ec.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ec.role.toLowerCase().includes(searchTerm.toLowerCase())
+    return costsSynced.filter(
+      (ec) =>
+        ec.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        ec.role.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [currentPeriod, searchTerm]);
+  }, [currentPeriod, costsSynced, searchTerm]);
 
   const stats = useMemo(() => {
     if (!currentPeriod) return { gross: 0, tax: 0, net: 0 };
-    const gross = currentPeriod.employeeCosts.reduce((sum, ec) => sum + ec.grossSalary, 0);
-    const tax = currentPeriod.employeeCosts.reduce((sum, ec) => sum + ec.tax, 0);
-    const net = currentPeriod.employeeCosts.reduce((sum, ec) => sum + ec.netPay, 0);
+    const list = currentPeriod.status === 'Open' ? costsSynced : currentPeriod.employeeCosts;
+    const gross = list.reduce((sum, ec) => sum + ec.grossSalary, 0);
+    const tax = list.reduce((sum, ec) => sum + ec.tax, 0);
+    const net = list.reduce((sum, ec) => sum + ec.netPay, 0);
     return { gross, tax, net };
-  }, [currentPeriod]);
+  }, [currentPeriod, costsSynced]);
 
   const columns = [
     {
@@ -220,10 +266,10 @@ export function Payroll() {
         description="Xử lý bảng tính lương hàng tháng, thuế và các khoản thưởng hiệu suất dự án."
         actions={
           <div className="flex items-center gap-3">
-            {currentPeriod?.status === 'Open' && (
+            {currentPeriod?.status === 'Open' && canConfirmPayroll(currentUser.role) && (
               <Btn variant="danger" icon={Lock} onClick={() => setIsLockModalOpen(true)}>Khoá kỳ lương</Btn>
             )}
-            <Btn icon={Plus} onClick={handleProcessPayroll} disabled={currentPeriod?.status === 'Locked'}>
+            <Btn icon={Plus} onClick={handleProcessPayroll} disabled={periodLocked}>
               Xử lý Lương & Thưởng
             </Btn>
           </div>
@@ -252,7 +298,7 @@ export function Payroll() {
                 <option key={p.id} value={p.id}>{p.month}</option>
               ))}
             </select>
-            <StatusBadge status={currentPeriod?.status === 'Open' ? 'Đang làm việc' : 'Đã khoá'} className="ml-2" />
+            <StatusBadge status={!periodLocked ? 'Đang làm việc' : 'Đã khoá'} className="ml-2" />
           </div>
         }
       />

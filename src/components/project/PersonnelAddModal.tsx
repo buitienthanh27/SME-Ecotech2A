@@ -5,7 +5,6 @@ import { ProjectMember } from '../../types';
 import { useStore } from '../../store/useStore';
 import { toast } from 'react-hot-toast';
 import { Modal, Btn } from '../ui';
-import { INITIAL_DEPARTMENTS, INITIAL_PERSONNEL } from '../../pages/Personnel';
 
 interface PersonnelAddModalProps {
   isOpen: boolean;
@@ -16,7 +15,7 @@ interface PersonnelAddModalProps {
 }
 
 export function PersonnelAddModal({ isOpen, onClose, projectId, onAdd, existingMemberIds = [] }: PersonnelAddModalProps) {
-  const { employees, currentUser, addPersonnelRequest } = useStore();
+  const { employees, departments: orgDepartments, currentUser } = useStore();
   
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [role, setRole] = useState('');
@@ -28,11 +27,11 @@ export function PersonnelAddModal({ isOpen, onClose, projectId, onAdd, existingM
   const [error, setError] = useState('');
 
   const managedDepartment = useMemo(() => {
-    return INITIAL_DEPARTMENTS.find(d => d.headId === currentUser.id.replace('e', ''));
-  }, [currentUser.id]);
+    return orgDepartments.find((d) => d.headId === currentUser.id);
+  }, [currentUser.id, orgDepartments]);
 
-  const departments = useMemo(() => {
-    return Array.from(new Set(employees.map(e => e.department)));
+  const departmentNameOptions = useMemo(() => {
+    return Array.from(new Set(employees.map((e) => e.department)));
   }, [employees]);
 
   useEffect(() => {
@@ -41,23 +40,22 @@ export function PersonnelAddModal({ isOpen, onClose, projectId, onAdd, existingM
     }
   }, [managedDepartment]);
 
-  // For department heads: use INITIAL_PERSONNEL filtered by their department
   const filteredEmployees = useMemo(() => {
     if (managedDepartment) {
-      return INITIAL_PERSONNEL.filter(e => {
-        const dept = INITIAL_DEPARTMENTS.find(d => d.id === e.departmentId);
-        const inDept = dept?.name === managedDepartment.name;
+      return employees.filter((e) => {
+        if (e.id === 'admin' || e.status !== 'Active') return false;
+        const inDept = e.departmentId === managedDepartment.id;
         const matchesSearch = e.name.toLowerCase().includes(search.toLowerCase());
         const notAdded = !existingMemberIds.includes(e.id);
         return inDept && matchesSearch && notAdded;
       });
     }
-    return employees.filter(e => {
-      if (e.status !== 'Active') return false;
+    return employees.filter((e) => {
+      if (e.id === 'admin' || e.status !== 'Active') return false;
       if (department && e.department !== department) return false;
       return e.name.toLowerCase().includes(search.toLowerCase());
     });
-  }, [employees, managedDepartment, department, search]);
+  }, [employees, managedDepartment, department, search, existingMemberIds]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,11 +178,11 @@ export function PersonnelAddModal({ isOpen, onClose, projectId, onAdd, existingM
                   }`}
                 >
                   <div className="w-8 h-8 rounded-full bg-[#ECFDF5] flex items-center justify-center text-[#148922] font-black text-[11px]">
-                    {e.avatar || e.name[0]}
+                    {e.name[0]}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-bold text-[#1A202C] truncate">{e.name}</p>
-                    <p className="text-[11px] text-[#718096] truncate">{e.role}</p>
+                    <p className="text-[11px] text-[#718096] truncate">{e.jobTitle || e.role}</p>
                   </div>
                   {selectedEmployeeId === e.id && (
                     <div className="w-5 h-5 rounded-full bg-[#148922] flex items-center justify-center shrink-0">
@@ -231,7 +229,11 @@ export function PersonnelAddModal({ isOpen, onClose, projectId, onAdd, existingM
                   onChange={e => { setDepartment(e.target.value); setSelectedEmployeeId(''); }}
                 >
                   <option value="">-- Tất cả phòng ban --</option>
-                  {departments.map(d => (<option key={d} value={d}>{d}</option>))}
+                  {departmentNameOptions.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>

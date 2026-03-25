@@ -53,6 +53,27 @@ export function Dashboard() {
     return { activeProjects, pendingApprovals, totalRevenue, totalProfit, signedContracts: contracts.length };
   }, [projects, contracts, approvalRequests]);
 
+  const riskAlerts = useMemo(() => {
+    const alerts: string[] = [];
+    const today = new Date();
+    for (const p of projects) {
+      const tasks = p.tasks || [];
+      const overdue = tasks.filter(
+        (t) =>
+          t.dueDate &&
+          new Date(t.dueDate) < today &&
+          t.status !== 'Done' &&
+          t.status !== 'Done'
+      );
+      if (overdue.length) alerts.push(`${p.name}: ${overdue.length} task quá hạn`);
+      const planned = p.costPlan?.reduce((s, c) => s + c.plannedAmount, 0) || 0;
+      if (planned > 0 && (p.actualExpense || 0) > planned) {
+        alerts.push(`${p.name}: chi thực tế vượt kế hoạch chi phí`);
+      }
+    }
+    return alerts.slice(0, 6);
+  }, [projects]);
+
   const topProfitableProjects = useMemo(() => [...projects]
     .map(p => {
       const actualIncome = p.actualIncome !== undefined ? p.actualIncome : (p.revenue || 0);
@@ -113,6 +134,19 @@ export function Dashboard() {
           </button>
         ))}
       </div>
+
+      {riskAlerts.length > 0 && (
+        <div className="bg-amber-50 border border-amber-100 rounded-[12px] p-4">
+          <div className="flex items-center gap-2 text-amber-900 font-bold text-sm mb-2">
+            <AlertCircle className="w-4 h-4" /> Cảnh báo vận hành / tài chính
+          </div>
+          <ul className="list-disc list-inside text-[13px] text-amber-950 space-y-1">
+            {riskAlerts.map((a, i) => (
+              <li key={i}>{a}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

@@ -21,7 +21,7 @@ export const DailyReviewPanel: React.FC<Props> = ({ isOpen, onClose, tasks, memb
   const tasksByAssignee = useMemo(() => {
     const groups: Record<string, Task[]> = {};
     tasks.forEach(task => {
-      if (task.status !== 'Closed' && task.assigneeId) {
+      if (task.status !== 'Done' && task.assigneeId) {
         if (!groups[task.assigneeId]) groups[task.assigneeId] = [];
         groups[task.assigneeId].push(task);
       }
@@ -54,7 +54,7 @@ export const DailyReviewPanel: React.FC<Props> = ({ isOpen, onClose, tasks, memb
     onClose();
   };
 
-  const totalTasks = tasks.filter(t => t.status !== 'Closed' && t.assigneeId).length;
+  const totalTasks = tasks.filter((t) => t.status !== 'Done' && t.assigneeId).length;
   const reviewedCount = Object.keys(reviews).length;
 
   if (!isOpen) return null;

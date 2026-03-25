@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Plus,
@@ -47,7 +47,8 @@ import {
   Employee,
   DailyProgressLog,
   SubstitutionLog,
-  TaskStatusLog
+  TaskStatusLog,
+  WorkShift,
 } from '../types';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -77,9 +78,13 @@ import { CSS } from '@dnd-kit/utilities';
 import { TaskCreateModal } from '../components/project/TaskCreateModal';
 import { PersonnelAddModal } from '../components/project/PersonnelAddModal';
 import { SprintManagementModal } from '../components/project/SprintManagementModal';
-import { Modal, Btn, ConfirmModal, showToast } from '../components/ui';
+import { Modal, Btn, ConfirmModal, showToast, StatusBadge } from '../components/ui';
 import { useStore } from '../store/useStore';
-import { INITIAL_DEPARTMENTS, INITIAL_PERSONNEL } from './Personnel';
+import { getBoardSocket } from '../services/boardSocket';
+import { hasProjectManagerPrivileges, canMoveTaskFromReviewToDone } from '../lib/permissions';
+import { generateWorkShiftsFromTasks, mergeGeneratedWorkSchedules } from '../lib/workScheduleFromTasks';
+import { mergeReorderedSubset } from '../lib/taskBoardMerge';
+import { taskContributionPoints, taskWorkloadWeight } from '../lib/taskWorkloadWeight';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -88,19 +93,18 @@ function cn(...inputs: ClassValue[]) {
 // Project Board Component
 
 const COLUMNS: { id: TaskStatus; title: string; color: string }[] = [
-  { id: 'Backlog', title: 'Khởi tạo', color: 'bg-[#F1F5F9] text-[#64748B]' },
+  { id: 'Todo', title: 'Todo', color: 'bg-[#F1F5F9] text-[#64748B]' },
   { id: 'In Progress', title: 'Đang làm', color: 'bg-[#E0F2FE] text-[#0369A1]' },
-  { id: 'In Review', title: 'Đang review', color: 'bg-[#FEF3C7] text-[#B45309]' },
+  { id: 'Review', title: 'Review', color: 'bg-[#FEF3C7] text-[#B45309]' },
   { id: 'Done', title: 'Hoàn thành', color: 'bg-[#ECFDF5] text-[#148922]' },
 ];
 
 // Mức tiến độ mặc định cho mỗi trạng thái
 const STATUS_COMPLETION_MAP: Record<TaskStatus, number> = {
-  'Backlog': 0,
+  Todo: 0,
   'In Progress': 25,
-  'In Review': 75,
-  'Done': 100,
-  'Closed': 100,
+  Review: 75,
+  Done: 100,
 };
 
 export function ProjectBoard() {
@@ -125,8 +129,11 @@ export function ProjectBoard() {
   const [isAddPersonnelOpen, setIsAddPersonnelOpen] = useState(false);
   const [inactivatingMember, setInactivatingMember] = useState<{ id: string; name: string } | null>(null);
   const [inactiveReason, setInactiveReason] = useState('');
+  const [sprintScope, setSprintScope] = useState<string>('all');
+  const [isSprintManageOpen, setIsSprintManageOpen] = useState(false);
 
-  const { projects, employees, updateProject, personnelRequests, updatePersonnelRequest, currentUser } = useStore();
+  const { projects, employees, departments, updateProject, personnelRequests, updatePersonnelRequest, currentUser, addApprovalRequest } =
+    useStore();
   const project = id ? projects.find(p => p.id === id) : projects[0];
   const projectMembers = project?.members || [];
   const projectSprints = project?.sprints || [];
@@ -142,6 +149,66 @@ export function ProjectBoard() {
     : ((project?.expenses || 0) * 1000);
   const provisionalProfit = actualIncome - actualExpense;
 
+  const updateProjectTasksSync = useCallback(
+    (newTasks: Task[]) => {
+      if (!project || !currentUser) return;
+      const generated = generateWorkShiftsFromTasks(project.id, newTasks);
+      const workSchedules = mergeGeneratedWorkSchedules(project.workSchedules, generated);
+      updateProject(project.id, { tasks: newTasks, workSchedules });
+      getBoardSocket().emit('emit-event', {
+        event: 'task.board_sync',
+        data: {
+          projectId: project.id,
+          tasks: newTasks,
+          workSchedules,
+          fromUserId: currentUser.id,
+        },
+        projectId: project.id,
+      });
+    },
+    [project, currentUser, updateProject]
+  );
+
+  useEffect(() => {
+    if (!project?.id || !currentUser?.id) return;
+    const s = getBoardSocket();
+    s.emit('join-project', {
+      projectId: project.id,
+      userId: currentUser.id,
+      userName: currentUser.name,
+    });
+    const onRemoteTasks = (data: {
+      projectId?: string;
+      tasks?: Task[];
+      workSchedules?: WorkShift[];
+      fromUserId?: string;
+    }) => {
+      if (data.projectId !== project.id || data.fromUserId === currentUser.id || !data.tasks) return;
+      const local = useStore.getState().projects.find((pr) => pr.id === project.id);
+      const workSchedules =
+        data.workSchedules ??
+        mergeGeneratedWorkSchedules(
+          local?.workSchedules,
+          generateWorkShiftsFromTasks(project.id, data.tasks)
+        );
+      updateProject(project.id, { tasks: data.tasks, workSchedules });
+    };
+    s.on('task.board_sync', onRemoteTasks);
+    return () => {
+      s.off('task.board_sync', onRemoteTasks);
+    };
+  }, [project?.id, currentUser?.id, currentUser?.name, updateProject]);
+
+  useEffect(() => {
+    if (!project) return;
+    const active = (project.sprints || []).find((s) => s.status === 'Active');
+    setSprintScope(active ? active.id : 'all');
+  }, [project?.id]);
+
+  useEffect(() => {
+    if (sprintScope === 'backlog') setSprintScope('all');
+  }, [sprintScope]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -153,11 +220,10 @@ export function ProjectBoard() {
     })
   );
 
-  const activeSprint = null;
-  const visibleTasks = useMemo(() => {
+  const roleFilteredTasks = useMemo(() => {
     let tasks = projectTasks;
     if (!currentUser) return tasks;
-    if (currentUser.role === 'PM' || currentUser.role === 'CEO') return tasks;
+    if (hasProjectManagerPrivileges(currentUser.role)) return tasks;
     if (currentUser.role === 'Lead') {
       const currentEmp = employees.find(e => e.id === currentUser.id);
       return tasks.filter(t => {
@@ -169,14 +235,51 @@ export function ProjectBoard() {
     return tasks.filter(t => t.assigneeId === currentUser.id);
   }, [projectTasks, currentUser, employees]);
 
+  const tasksForScope = useMemo(() => {
+    if (sprintScope === 'all') return roleFilteredTasks;
+    return roleFilteredTasks.filter((t) => t.sprintId === sprintScope);
+  }, [roleFilteredTasks, sprintScope]);
+
+  const visibleTasks = tasksForScope;
+
+  /** Tiến độ trung bình toàn dự án (theo quyền xem task), không đổi theo Sprint */
+  const projectWideStats = useMemo(() => {
+    const tasks = roleFilteredTasks;
+    const total = tasks.length;
+    const sum = tasks.reduce((acc, t) => acc + (Number(t.completionPercent) || 0), 0);
+    const avgProgress = total > 0 ? sum / total : 0;
+    return {
+      total,
+      avgProgress: Number.isFinite(avgProgress) ? avgProgress : 0,
+    };
+  }, [roleFilteredTasks]);
+
+  const workSchedulesForScope = useMemo(() => {
+    const raw = project?.workSchedules || [];
+    if (sprintScope === 'all') return raw;
+    const ids = new Set(tasksForScope.map((t) => t.id));
+    return raw.filter((ws) => {
+      if (!ws.taskId) return false;
+      return ids.has(ws.taskId);
+    });
+  }, [project?.workSchedules, sprintScope, tasksForScope]);
+
   const stats = useMemo(() => {
     const total = visibleTasks.length;
-    const done = visibleTasks.filter(t => t.status === 'Done').length;
-    const inProgress = visibleTasks.filter(t => t.status === 'In Progress').length;
-    const inReview = visibleTasks.filter(t => t.status === 'In Review').length;
-    const backlog = visibleTasks.filter(t => t.status === 'Backlog').length;
-    const avgProgress = total > 0 ? visibleTasks.reduce((acc, t) => acc + t.completionPercent, 0) / total : 0;
-    return { total, done, inProgress, inReview, backlog, avgProgress };
+    const done = visibleTasks.filter((t) => t.status === 'Done').length;
+    const inProgress = visibleTasks.filter((t) => t.status === 'In Progress').length;
+    const review = visibleTasks.filter((t) => t.status === 'Review').length;
+    const todo = visibleTasks.filter((t) => t.status === 'Todo').length;
+    const sumProgress = visibleTasks.reduce((acc, t) => acc + (Number(t.completionPercent) || 0), 0);
+    const avgProgress = total > 0 ? sumProgress / total : 0;
+    return {
+      total,
+      done,
+      inProgress,
+      review,
+      todo,
+      avgProgress: Number.isFinite(avgProgress) ? avgProgress : 0,
+    };
   }, [visibleTasks]);
 
   useEffect(() => {
@@ -185,7 +288,7 @@ export function ProjectBoard() {
       const updatedTasks = projectTasks.map((t: Task) =>
         t.id === data.taskId ? { ...t, status: data.newStatus } : t
       );
-      updateProject(project.id, { tasks: updatedTasks });
+      updateProjectTasksSync(updatedTasks);
       setPulse(true);
       setTimeout(() => setPulse(false), 1000);
     };
@@ -198,14 +301,14 @@ export function ProjectBoard() {
         actualHours: t.actualHours + data.hoursWorked,
         isReviewedToday: true
       } : t);
-      updateProject(project.id, { tasks: updatedTasks });
+      updateProjectTasksSync(updatedTasks);
       setPulse(true);
       setTimeout(() => setPulse(false), 1000);
     };
 
     const handleNewTask = (task: Task) => {
       if (!project) return;
-      updateProject(project.id, { tasks: [...projectTasks, task] });
+      updateProjectTasksSync([...projectTasks, task]);
     };
 
     realtimeService.on('task.status_changed', handleStatusChange);
@@ -217,7 +320,7 @@ export function ProjectBoard() {
       realtimeService.off('task.progress_logged', handleProgressLogged);
       realtimeService.off('task.created', handleNewTask);
     };
-  }, [project, projectTasks, updateProject]);
+  }, [project, projectTasks, updateProjectTasksSync]);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -267,12 +370,21 @@ export function ProjectBoard() {
 
     // If status changed, enforce rules
     if (activeTask.status !== targetStatus) {
+      if (
+        activeTask.status === 'Review' &&
+        targetStatus === 'Done' &&
+        !canMoveTaskFromReviewToDone(currentUser.role)
+      ) {
+        showToast.error('Chỉ PM, Lead, CEO hoặc quản trị mới kéo task từ Review sang Hoàn thành.');
+        return;
+      }
+
       const statusIds = COLUMNS.map(c => c.id);
       const oldIdx = statusIds.indexOf(activeTask.status);
       const newIdx = statusIds.indexOf(targetStatus);
       const isForward = newIdx > oldIdx;
 
-      const isPM = currentUser.role === 'PM' || currentUser.role === 'CEO';
+      const isPM = hasProjectManagerPrivileges(currentUser.role);
 
       if (isForward) {
         // Forward: Execute immediately without confirmation
@@ -289,13 +401,19 @@ export function ProjectBoard() {
       return;
     }
 
-    // Handle same-status sorting immediately
+    // Handle same-status sorting immediately (trong phạm vi sprint đang xem)
     if (overTaskForMove) {
-      const oldIdx = projectTasks.findIndex(t => t.id === activeIdVal);
-      const newIdx = projectTasks.findIndex(t => t.id === overIdVal);
-      if (oldIdx !== newIdx) {
-        const updatedTasks = arrayMove([...projectTasks], oldIdx, newIdx);
-        updateProject(project.id, { tasks: updatedTasks });
+      const scopeSet = new Set(visibleTasks.map(t => t.id));
+      if (!scopeSet.has(activeIdVal) || !scopeSet.has(overIdVal)) return;
+      const colTasks = projectTasks.filter(
+        t => scopeSet.has(t.id) && t.status === activeTask.status
+      );
+      const oldIdx = colTasks.findIndex(t => t.id === activeIdVal);
+      const newIdx = colTasks.findIndex(t => t.id === overIdVal);
+      if (oldIdx !== newIdx && oldIdx >= 0 && newIdx >= 0) {
+        const newCol = arrayMove(colTasks, oldIdx, newIdx);
+        const updatedTasks = mergeReorderedSubset(projectTasks, newCol);
+        updateProjectTasksSync(updatedTasks);
       }
     }
   };
@@ -332,7 +450,7 @@ export function ProjectBoard() {
       updatedTasks = arrayMove(updatedTasks, oldIdx, newIndex);
     }
 
-    updateProject(project.id, { tasks: updatedTasks });
+    updateProjectTasksSync(updatedTasks);
     realtimeService.simulateEvent('task.status_changed', {
       taskId: task.id,
       newStatus,
@@ -360,15 +478,16 @@ export function ProjectBoard() {
 
   const handleCreateTask = (newTask: Task) => {
     if (!project) return;
-    updateProject(project.id, {
-      tasks: [...(project.tasks || []), newTask]
-    });
+    updateProjectTasksSync([...(project.tasks || []), newTask]);
     realtimeService.simulateEvent('task.created', {
       taskId: newTask.id,
       title: newTask.title,
       userName: 'Bạn'
     });
   };
+
+  const canCreateTask =
+    sprintScope !== 'all' && projectSprints.length > 0;
 
   const handleUpdateSprints = (newSprints: Sprint[]) => {
     if (!project) return;
@@ -380,10 +499,29 @@ export function ProjectBoard() {
   const activeTask = activeId ? projectTasks.find(t => t.id === activeId) : null;
 
   const handleAddMember = (newMember: ProjectMember) => {
-    if (!project) return;
-    updateProject(project.id, {
-      members: [...project.members, newMember]
-    });
+    if (!project || !currentUser) return;
+    const needsCeo = currentUser.role === 'Lead';
+    const member: ProjectMember = needsCeo
+      ? { ...newMember, approvalStatus: 'Pending' }
+      : { ...newMember, approvalStatus: 'Approved' };
+    updateProject(project.id, { members: [...project.members, member] });
+    if (needsCeo) {
+      addApprovalRequest({
+        id: `apr-${Date.now()}`,
+        title: `Duyệt nhân sự dự án ${project.name}`,
+        type: 'PersonnelProject',
+        priority: 'Medium',
+        targetRole: 'CEO',
+        projectId: project.id,
+        pendingMemberId: member.id,
+        status: 'Pending',
+        submittedBy: currentUser.name,
+        requesterId: currentUser.id,
+        submittedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      });
+      showToast.success('Đã gửi yêu cầu duyệt nhân sự lên CEO.');
+    }
   };
 
   const handleToggleMemberStatus = (memberId: string, currentStatus: 'Active' | 'Inactive') => {
@@ -393,7 +531,9 @@ export function ProjectBoard() {
 
     if (currentStatus === 'Active') {
       // Check if holding ANY active tasks
-      const assignedTasks = projectTasks.filter(t => t.assigneeId === member.employeeId && t.status !== 'Done' && t.status !== 'Closed');
+      const assignedTasks = projectTasks.filter(
+        (t) => t.assigneeId === member.employeeId && t.status !== 'Done'
+      );
       if (assignedTasks.length > 0) {
         alert('Không thể chuyển Inactive nhân sự đang giữ task chưa hoàn thành. Vui lòng gỡ hoặc thay thế nhân sự này khỏi task trước.');
         return;
@@ -422,56 +562,66 @@ export function ProjectBoard() {
   };
 
   const projectPersonnel = useMemo(() => {
-    const totalProjectTasks = projectTasks.length;
-    // Total potential progress points is totalTasks * 100
-    const totalPotentialProgress = totalProjectTasks * 100;
+    const scopeTasks = tasksForScope;
+    const totalProjectTasks = scopeTasks.length;
+    const totalWeight = scopeTasks.reduce((s, t) => {
+      const w = taskWorkloadWeight(t);
+      return s + (Number.isFinite(w) && w > 0 ? w : 1);
+    }, 0);
+    const totalProgressPoints = scopeTasks.reduce((s, t) => {
+      const p = taskContributionPoints(t);
+      return s + (Number.isFinite(p) ? p : 0);
+    }, 0);
 
     return projectMembers.map(m => {
-      const emp = INITIAL_PERSONNEL.find(e => e.id === String(m.employeeId).replace('e', '')) || employees.find(e => e.id === m.employeeId);
-      const memberTasks = projectTasks.filter(t => t.assigneeId === m.employeeId);
+      const emp = employees.find((e) => e.id === m.employeeId);
+      const memberTasks = scopeTasks.filter(t => t.assigneeId === m.employeeId);
       const memberTasksCount = memberTasks.length;
-
-      // Calculate work contribution (total progress points contributed)
-      const contributedProgress = memberTasks.reduce((acc, t) => {
-        return acc + (t.completionPercent - (t.startingPercent || 0));
+      const memberWeight = memberTasks.reduce((s, t) => {
+        const w = taskWorkloadWeight(t);
+        return s + (Number.isFinite(w) && w > 0 ? w : 1);
+      }, 0);
+      const memberProgressPoints = memberTasks.reduce((s, t) => {
+        const p = taskContributionPoints(t);
+        return s + (Number.isFinite(p) ? p : 0);
       }, 0);
 
-      // We also find tasks cloned from this person to get their previous work
-      const previousContributions = projectTasks
-        .filter(t => t.clonedFromTaskId)
-        .map(t => {
-          const original = projectTasks.find(ot => ot.id === t.clonedFromTaskId);
-          return original?.assigneeId === m.employeeId ? t.startingPercent || 0 : 0;
-        })
-        .reduce((acc, val) => acc + val, 0);
+      const calculatedAllocation =
+        totalWeight > 0
+          ? Math.round((memberWeight / totalWeight) * 100)
+          : totalProjectTasks > 0
+            ? Math.round((memberTasksCount / totalProjectTasks) * 100)
+            : 0;
 
-      const totalContribution = contributedProgress + previousContributions;
-      const contributionPercent = totalPotentialProgress > 0
-        ? Math.round((totalContribution / totalPotentialProgress) * 100)
-        : 0;
+      let contributionShare = 0;
+      if (totalProgressPoints > 0 && Number.isFinite(totalProgressPoints) && Number.isFinite(memberProgressPoints)) {
+        contributionShare = Math.round((memberProgressPoints / totalProgressPoints) * 100);
+      }
+      if (!Number.isFinite(contributionShare)) contributionShare = 0;
+      contributionShare = Math.min(100, Math.max(0, contributionShare));
 
-      const calculatedAllocation = totalProjectTasks > 0
-        ? Math.round((memberTasksCount / totalProjectTasks) * 100)
+      const allocation = Number.isFinite(calculatedAllocation)
+        ? Math.min(100, Math.max(0, calculatedAllocation))
         : 0;
 
       return {
         ...m,
         employee: emp,
-        allocation: calculatedAllocation,
-        contribution: contributionPercent
+        allocation,
+        contribution: contributionShare,
       };
     });
-  }, [projectMembers, projectTasks, employees]);
+  }, [projectMembers, tasksForScope, employees]);
 
   const groupedPersonnel = useMemo(() => {
     const groups: Record<string, typeof projectPersonnel> = {};
-    const managedDepartment = INITIAL_DEPARTMENTS.find(d => d.headId === currentUser?.id.replace('e', ''));
+    const managedDepartment = departments.find((d) => d.headId === currentUser?.id);
     if (managedDepartment) groups[managedDepartment.name] = [];
 
     projectPersonnel.forEach(m => {
       let dept = 'Khác';
       if (m.employee?.departmentId) {
-        dept = INITIAL_DEPARTMENTS.find(d => d.id === m.employee.departmentId)?.name || 'Khác';
+        dept = departments.find((d) => d.id === m.employee.departmentId)?.name || 'Khác';
       } else if (m.employee?.department) {
         dept = m.employee.department;
       }
@@ -480,198 +630,274 @@ export function ProjectBoard() {
       groups[dept].push(m);
     });
     return groups;
-  }, [projectPersonnel, currentUser]);
+  }, [projectPersonnel, currentUser, departments]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Header */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <div className="flex flex-wrap items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className={cn(
-                "w-2 h-2 rounded-full",
-                isLive ? "bg-emerald-500" : "bg-gray-300",
-                pulse && "animate-ping"
-              )}></div>
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Live</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all">
-              <FileText className="w-4 h-4" />
-              Báo cáo
-            </button>
-            <button
-              onClick={() => setIsCreateTaskOpen(true)}
-              className="flex items-center gap-2 bg-[#148922] text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-[#148922]/20 hover:bg-[#0E6318] transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              Tạo task mới
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
-          <div className="md:col-span-1 flex items-center gap-4">
-            <div className="relative w-16 h-16">
-              <svg className="w-full h-full" viewBox="0 0 36 36">
-                <path
-                  className="#E2E8F0"
-                  strokeDasharray="100, 100"
-                  strokeWidth="3"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                />
-                <path
-                  className="text-[#148922]"
-                  strokeDasharray={`${stats.avgProgress}, 100`}
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-xs font-black text-gray-900">{Math.round(stats.avgProgress)}%</span>
-              </div>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tiến độ dự án</p>
-              <p className="text-sm font-black text-gray-900">{stats.done}/{stats.total} Task hoàn thành</p>
-            </div>
-          </div>
-
-          <div className="md:col-span-3 grid grid-cols-4 gap-4">
-            <div className="bg-[#F1F5F9] rounded-xl p-4">
-              <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest mb-1">Khởi tạo</p>
-              <p className="text-2xl font-black text-[#1A202C]">{stats.backlog}</p>
-            </div>
-            <div className="bg-[#E0F2FE] rounded-xl p-4">
-              <p className="text-[10px] font-bold text-[#0369A1] uppercase tracking-widest mb-1">Đang làm</p>
-              <p className="text-2xl font-black text-[#1A202C]">{stats.inProgress}</p>
-            </div>
-            <div className="bg-[#FEF3C7] rounded-xl p-4">
-              <p className="text-[10px] font-bold text-[#B45309] uppercase tracking-widest mb-1">Đang review</p>
-              <p className="text-2xl font-black text-[#1A202C]">{stats.inReview}</p>
-            </div>
-            <div className="bg-[#ECFDF5] rounded-xl p-4">
-              <p className="text-[10px] font-bold text-[#148922] uppercase tracking-widest mb-1">Hoàn thành</p>
-              <p className="text-2xl font-black text-[#1A202C]">{stats.done}</p>
+    <div className="space-y-4 animate-in fade-in duration-500 max-w-[1920px] mx-auto w-full pb-6">
+      {/* Thanh điều hướng + tên dự án */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3 min-w-0">
+          <button
+            type="button"
+            onClick={() => navigate('/projects')}
+            className="mt-0.5 shrink-0 flex h-10 w-10 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-[#64748B] shadow-sm hover:border-[#148922] hover:text-[#148922] transition-colors"
+            title="Về danh sách dự án"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider">Không gian dự án</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-black leading-tight text-[#1A202C] sm:text-2xl truncate max-w-full">
+                {project?.name ?? 'Dự án'}
+              </h1>
+              {project?.code && (
+                <span className="shrink-0 rounded-lg bg-[#F1F5F9] px-2 py-0.5 font-mono text-xs font-bold text-[#64748B]">
+                  {project.code}
+                </span>
+              )}
+              {project?.status && <StatusBadge status={project.status} />}
             </div>
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <div className="flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 py-1.5 shadow-sm">
+            <div
+              className={cn(
+                'h-2 w-2 rounded-full',
+                isLive ? 'bg-emerald-500' : 'bg-gray-300',
+                pulse && 'animate-ping'
+              )}
+            />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748B]">Live</span>
+          </div>
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-bold text-[#334155] shadow-sm transition-all hover:bg-[#F8FAFC]"
+          >
+            <FileText className="h-4 w-4" />
+            Báo cáo
+          </button>
+          <button
+            type="button"
+            disabled={!canCreateTask}
+            title={
+              !canCreateTask
+                ? sprintScope === 'all'
+                  ? 'Chọn một Sprint ở ô Phạm vi — không tạo task khi đang xem toàn bộ dự án'
+                  : 'Thêm ít nhất một Sprint trong Quản lý Sprint'
+                : 'Tạo task mới trong phạm vi đang chọn'
+            }
+            onClick={() => {
+              if (!canCreateTask) {
+                showToast.error(
+                  sprintScope === 'all'
+                    ? 'Vui lòng chọn một Sprint ở ô Phạm vi trước khi tạo task.'
+                    : 'Cần có ít nhất một Sprint để tạo task.'
+                );
+                return;
+              }
+              setIsCreateTaskOpen(true);
+            }}
+            className="flex items-center gap-2 rounded-xl bg-[#148922] px-5 py-2 text-sm font-bold text-white shadow-md shadow-[#148922]/20 transition-all hover:bg-[#0E6318] disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <Plus className="h-4 w-4" />
+            Tạo task
+          </button>
+        </div>
+      </div>
 
-        {/* Financial and Timeline Summary Row */}
-        <div className="mt-8 pt-6 border-t border-gray-50 flex flex-col xl:flex-row gap-8">
-          {/* Financial Summary */}
-          <div className="flex-1 bg-[#F8FAFC] p-4 rounded-2xl border border-[#E2E8F0]">
-            <div className="flex items-center gap-2 mb-4">
-              <Banknote className="w-4 h-4 text-[#148922]" />
-              <span className="text-sm font-bold text-gray-700">Tài chính dự án</span>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1">
-                  <ArrowUpRight className="w-3 h-3 text-[#148922]" /> Doanh thu dự kiến / Thực tế
-                </p>
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs font-bold text-gray-500">Dự kiến: {plannedIncome.toLocaleString('vi-VN')} đ</span>
-                  <span className="text-sm font-black text-[#148922]">Thực: {actualIncome.toLocaleString('vi-VN')} đ</span>
+      {/* Tóm tắt tiến độ + tài chính + timeline */}
+      <div className="overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-sm">
+        <div className="border-b border-[#F1F5F9] p-4 sm:p-5">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
+            <div className="flex shrink-0 items-center gap-4">
+              <div className="relative h-14 w-14 sm:h-16 sm:w-16">
+                <svg className="h-full w-full" viewBox="0 0 36 36">
+                  <path
+                    className="#E2E8F0"
+                    strokeDasharray="100, 100"
+                    strokeWidth="3"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                  <path
+                    className="text-[#148922]"
+                    strokeDasharray={`${stats.avgProgress}, 100`}
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-[11px] font-black text-gray-900">{Math.round(stats.avgProgress)}%</span>
                 </div>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1">
-                  <ArrowDownRight className="w-3 h-3 text-red-500" /> Chi dự kiến / Thực tế
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Tiến độ (phạm vi đang xem)</p>
+                <p className="text-sm font-black text-[#1A202C]">
+                  {stats.done}/{stats.total} task hoàn thành
                 </p>
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs font-bold text-gray-500">Dự kiến: {plannedExpense.toLocaleString('vi-VN')} đ</span>
-                  <span className="text-sm font-black text-red-600">Thực: {actualExpense.toLocaleString('vi-VN')} đ</span>
-                </div>
               </div>
             </div>
-            <div className="mt-4 pt-4 border-t border-[#E2E8F0] flex justify-between items-center">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Lãi/Lỗ tạm tính</span>
-              <span className={`text-base font-black ${provisionalProfit >= 0 ? 'text-[#148922]' : 'text-red-600'}`}>
-                {(provisionalProfit > 0 ? '+' : '')}{provisionalProfit.toLocaleString('vi-VN')} đ
+            <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+              <div className="rounded-xl bg-[#F1F5F9] p-3">
+                <p className="mb-0.5 text-[10px] font-bold uppercase tracking-widest text-[#64748B]">Todo</p>
+                <p className="text-xl font-black text-[#1A202C] sm:text-2xl">{stats.todo}</p>
+              </div>
+              <div className="rounded-xl bg-[#E0F2FE] p-3">
+                <p className="mb-0.5 text-[10px] font-bold uppercase tracking-widest text-[#0369A1]">Đang làm</p>
+                <p className="text-xl font-black text-[#1A202C] sm:text-2xl">{stats.inProgress}</p>
+              </div>
+              <div className="rounded-xl bg-[#FEF3C7] p-3">
+                <p className="mb-0.5 text-[10px] font-bold uppercase tracking-widest text-[#B45309]">Review</p>
+                <p className="text-xl font-black text-[#1A202C] sm:text-2xl">{stats.review}</p>
+              </div>
+              <div className="rounded-xl bg-[#ECFDF5] p-3">
+                <p className="mb-0.5 text-[10px] font-bold uppercase tracking-widest text-[#148922]">Hoàn thành</p>
+                <p className="text-xl font-black text-[#1A202C] sm:text-2xl">{stats.done}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-2">
+          <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <Banknote className="h-4 w-4 text-[#148922]" />
+              <span className="text-sm font-bold text-gray-800">Tài chính dự án</span>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <p className="mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                  <ArrowUpRight className="h-3 w-3 text-[#148922]" /> Doanh thu
+                </p>
+                <p className="text-xs font-semibold text-gray-500">Dự kiến: {plannedIncome.toLocaleString('vi-VN')} đ</p>
+                <p className="text-sm font-black text-[#148922]">Thực: {actualIncome.toLocaleString('vi-VN')} đ</p>
+              </div>
+              <div>
+                <p className="mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                  <ArrowDownRight className="h-3 w-3 text-red-500" /> Chi phí
+                </p>
+                <p className="text-xs font-semibold text-gray-500">Dự kiến: {plannedExpense.toLocaleString('vi-VN')} đ</p>
+                <p className="text-sm font-black text-red-600">Thực: {actualExpense.toLocaleString('vi-VN')} đ</p>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between border-t border-[#E2E8F0] pt-3">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Lãi/Lỗ tạm tính</span>
+              <span
+                className={`text-sm font-black ${provisionalProfit >= 0 ? 'text-[#148922]' : 'text-red-600'}`}
+              >
+                {(provisionalProfit > 0 ? '+' : '')}
+                {provisionalProfit.toLocaleString('vi-VN')} đ
               </span>
             </div>
           </div>
 
-          {/* Timeline visualization */}
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-4">
+          <div className="rounded-2xl border border-[#E2E8F0] bg-white p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-[#148922]" />
-                <span className="text-sm font-bold text-gray-700">Timeline dự án</span>
+                <Calendar className="h-4 w-4 text-[#148922]" />
+                <span className="text-sm font-bold text-gray-800">Timeline</span>
               </div>
-              <div className="flex items-center gap-6">
-                <div className="flex flex-col items-end">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Bắt đầu</span>
-                  <span className="text-xs font-black text-gray-900">{project?.startDate || 'N/A'}</span>
+              <div className="flex items-center gap-4 text-right text-xs">
+                <div>
+                  <span className="block text-[10px] font-bold uppercase tracking-widest text-gray-400">Bắt đầu</span>
+                  <span className="font-black text-gray-900">{project?.startDate ?? '—'}</span>
                 </div>
-                <div className="w-px h-8 bg-gray-100" />
-                <div className="flex flex-col items-end">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Kết thúc</span>
-                  <span className="text-xs font-black text-gray-900">{project?.endDate || 'N/A'}</span>
+                <div className="h-8 w-px bg-gray-100" />
+                <div>
+                  <span className="block text-[10px] font-bold uppercase tracking-widest text-gray-400">Kết thúc</span>
+                  <span className="font-black text-gray-900">{project?.endDate ?? '—'}</span>
                 </div>
               </div>
             </div>
-            <div className="relative h-3 bg-gray-100 rounded-full overflow-hidden mt-6">
+            <div className="relative h-2.5 overflow-hidden rounded-full bg-gray-100">
               <div
                 className="absolute inset-y-0 left-0 bg-[#148922] transition-all duration-1000 ease-out"
-                style={{ width: `${stats.avgProgress}%` }}
+                style={{ width: `${Math.min(100, Math.max(0, projectWideStats.avgProgress))}%` }}
               />
             </div>
-            <div className="flex justify-between mt-2">
-              <span className="text-[10px] font-bold text-gray-400">Tỉ lệ hoàn thành task: </span>
-              <span className="text-[10px] font-bold text-[#148922]">{Math.round(stats.avgProgress)}%</span>
-            </div>
+            <p className="mt-2 text-right text-[10px] font-bold text-[#148922]">
+              Tiến độ chung toàn dự án: {Math.round(Math.min(100, Math.max(0, projectWideStats.avgProgress)))}%
+              <span className="ml-1 font-medium text-gray-400">({projectWideStats.total} task)</span>
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Tab Switcher */}
-      <div className="mt-8 flex items-center gap-1 bg-[#F1F5F9] p-1 rounded-2xl w-fit border border-[#E2E8F0]">
-        <button
-          onClick={() => setActiveTab('kanban')}
-          className={cn(
-            "flex items-center gap-3 px-6 py-2 rounded-xl text-sm font-black transition-all",
-            activeTab === 'kanban'
-              ? "bg-white text-[#148922] shadow-sm shadow-[#148922]/5"
-              : "text-[#718096] hover:text-[#1A202C] hover:bg-white/50"
-          )}
-        >
-          <LayoutGrid className="w-4 h-4" />
-          Bảng Kanban
-        </button>
-        <button
-          onClick={() => setActiveTab('personnel')}
-          className={cn(
-            "flex items-center gap-3 px-6 py-2 rounded-xl text-sm font-black transition-all",
-            activeTab === 'personnel'
-              ? "bg-white text-[#148922] shadow-sm shadow-[#148922]/5"
-              : "text-[#718096] hover:text-[#1A202C] hover:bg-white/50"
-          )}
-        >
-          <Users className="w-4 h-4" />
-          Nhân sự
-        </button>
-        <button
-          onClick={() => setActiveTab('schedule')}
-          className={cn(
-            "flex items-center gap-3 px-6 py-2 rounded-xl text-sm font-black transition-all",
-            activeTab === 'schedule'
-              ? "bg-white text-[#148922] shadow-sm shadow-[#148922]/5"
-              : "text-[#718096] hover:text-[#1A202C] hover:bg-white/50"
-          )}
-        >
-          <Calendar className="w-4 h-4" />
-          Lịch làm việc
-        </button>
+      {/* Tab + phạm vi sprint — một hàng trên desktop */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-2 sm:p-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex w-full min-w-0 flex-wrap gap-1 lg:w-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab('kanban')}
+            className={cn(
+              'flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-black transition-all sm:flex-none sm:justify-start sm:px-5',
+              activeTab === 'kanban'
+                ? 'bg-white text-[#148922] shadow-sm shadow-[#148922]/10'
+                : 'text-[#64748B] hover:bg-white/70 hover:text-[#1A202C]'
+            )}
+          >
+            <LayoutGrid className="h-4 w-4 shrink-0" />
+            Kanban
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('personnel')}
+            className={cn(
+              'flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-black transition-all sm:flex-none sm:justify-start sm:px-5',
+              activeTab === 'personnel'
+                ? 'bg-white text-[#148922] shadow-sm shadow-[#148922]/10'
+                : 'text-[#64748B] hover:bg-white/70 hover:text-[#1A202C]'
+            )}
+          >
+            <Users className="h-4 w-4 shrink-0" />
+            Nhân sự
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('schedule')}
+            className={cn(
+              'flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-black transition-all sm:flex-none sm:justify-start sm:px-5',
+              activeTab === 'schedule'
+                ? 'bg-white text-[#148922] shadow-sm shadow-[#148922]/10'
+                : 'text-[#64748B] hover:bg-white/70 hover:text-[#1A202C]'
+            )}
+          >
+            <Calendar className="h-4 w-4 shrink-0" />
+            Lịch
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-2 border-t border-[#E2E8F0] pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:border-t-0 sm:pt-0 lg:border-l lg:pl-4">
+          <div className="flex items-center gap-2">
+            <List className="h-4 w-4 shrink-0 text-[#64748B]" />
+            <span className="text-[11px] font-black uppercase tracking-wider text-[#64748B]">Sprint</span>
+          </div>
+          <select
+            value={sprintScope}
+            onChange={(e) => setSprintScope(e.target.value)}
+            className="min-h-[40px] min-w-0 flex-1 rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-bold text-[#1A202C] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#148922]/20 sm:min-w-[220px] sm:flex-none"
+          >
+            <option value="all">Toàn bộ dự án</option>
+            {projectSprints.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.status})
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => setIsSprintManageOpen(true)}
+            className="min-h-[40px] shrink-0 rounded-xl border border-[#148922]/40 bg-white px-4 py-2 text-sm font-bold text-[#148922] transition-colors hover:bg-[#ECFDF5]"
+          >
+            Quản lý Sprint
+          </button>
+        </div>
       </div>
 
       {activeTab === 'kanban' ? (
@@ -715,7 +941,13 @@ export function ProjectBoard() {
         </DndContext>
       ) : activeTab === 'personnel' ? (
         <div className="space-y-6">
-          {(currentUser?.role === 'PM' || currentUser?.role === 'CEO') && project && (
+          <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-[13px] leading-snug text-[#475569]">
+            <span className="font-bold text-[#148922]">Phạm vi % Allocation / % Contribution:</span>{' '}
+            {sprintScope === 'all'
+              ? 'Toàn dự án — tính trên mọi task bạn được xem; trọng số = giờ ước tính (nếu có) hoặc số ngày từ ngày bắt đầu đến hạn chót.'
+              : `${projectSprints.find((s) => s.id === sprintScope)?.name ?? 'Sprint'} — chỉ các task gán sprint này.`}
+          </div>
+          {hasProjectManagerPrivileges(currentUser?.role ?? 'Employee') && project && (
             <PersonnelRequestsPanel
               projectId={project.id}
               onApprove={(req: any) => {
@@ -759,7 +991,7 @@ export function ProjectBoard() {
                       </p>
                     </div>
                   </div>
-                  {INITIAL_DEPARTMENTS.find(d => d.headId === currentUser?.id.replace('e', ''))?.name === selectedDepartment && (
+                  {departments.find((d) => d.headId === currentUser?.id)?.name === selectedDepartment && (
                     <button
                       onClick={() => setIsAddPersonnelOpen(true)}
                       className="flex items-center gap-2 bg-[#148922] text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-[#0b6b17] transition-all shadow-lg shadow-[#148922]/20"
@@ -864,7 +1096,7 @@ export function ProjectBoard() {
                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {Object.entries(groupedPersonnel).map(([deptName, membersList]) => {
                     const members = membersList as any[];
-                    const isManaged = INITIAL_DEPARTMENTS.find(d => d.headId === currentUser?.id.replace('e', ''))?.name === deptName;
+                    const isManaged = departments.find((d) => d.headId === currentUser?.id)?.name === deptName;
                     return (
                       <div
                         key={deptName}
@@ -913,8 +1145,8 @@ export function ProjectBoard() {
         </div>
       ) : (
         <WorkScheduleTab
-          schedules={project?.workSchedules || []}
-          tasks={projectTasks}
+          schedules={workSchedulesForScope}
+          tasks={tasksForScope}
           employees={employees}
           project={project}
           updateProject={updateProject}
@@ -929,7 +1161,7 @@ export function ProjectBoard() {
         onUpdate={(updatedTask) => {
           if (!project) return;
           const updatedTasks = projectTasks.map(t => t.id === updatedTask.id ? updatedTask : t);
-          updateProject(project.id, { tasks: updatedTasks });
+          updateProjectTasksSync(updatedTasks);
           setSelectedTask(updatedTask);
         }}
         onSubstitution={() => setIsSubstitutionOpen(true)}
@@ -960,7 +1192,7 @@ export function ProjectBoard() {
             progressHistory: [...(selectedTask.progressHistory || []), historyEntry]
           };
           const updatedTasks = projectTasks.map(t => t.id === updatedTask.id ? updatedTask : t);
-          updateProject(project.id, { tasks: updatedTasks });
+          updateProjectTasksSync(updatedTasks);
           setSelectedTask(updatedTask);
           setIsSubstitutionOpen(false);
           // Realtime notify
@@ -975,24 +1207,36 @@ export function ProjectBoard() {
 
       {/* Task Create Modal */}
       <AnimatePresence>
-        {isCreateTaskOpen && (
+        {isCreateTaskOpen && project && (
           <TaskCreateModal
             isOpen={isCreateTaskOpen}
             onClose={() => setIsCreateTaskOpen(false)}
             onCreate={handleCreateTask}
-            sprintId={''}
-            members={projectMembers.filter(m => m.status === 'Active').map(m => {
-              const emp = employees.find(e => e.id === m.employeeId);
-              return {
-                id: m.employeeId,
-                name: emp?.name || 'N/A',
-                role: m.role,
-                avatar: emp?.name.charAt(0) || '?'
-              };
-            })}
+            sprints={projectSprints.map((s) => ({
+              id: s.id,
+              name: s.name,
+              startDate: s.startDate,
+              endDate: s.endDate,
+            }))}
+            projectStartDate={project.startDate}
+            projectEndDate={project.endDate}
+            initialSprintId={sprintScope !== 'all' ? sprintScope : undefined}
+            members={projectMembers.filter((m) => m.status === 'Active')}
           />
         )}
       </AnimatePresence>
+
+      {project && (
+        <SprintManagementModal
+          isOpen={isSprintManageOpen}
+          onClose={() => setIsSprintManageOpen(false)}
+          sprints={projectSprints}
+          onUpdate={handleUpdateSprints}
+          projectId={project.id}
+          projectStartDate={project.startDate}
+          projectEndDate={project.endDate}
+        />
+      )}
 
       {/* Project Personnel Add Modal */}
       <AnimatePresence>
@@ -1205,7 +1449,9 @@ function TaskCard({ task, onClick, isOverlay, employees, allTasks, onTaskClick }
       onClick={onClick}
       className={cn(
         "bg-white p-4 rounded-2xl shadow-sm border border-gray-100 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-[#148922]/20 transition-all group",
-        task.status === 'Closed' && "opacity-50 grayscale",
+        task.status === 'Done' &&
+          (task.completionPercent ?? 0) < 100 &&
+          'opacity-50 grayscale',
         isOverlay && "cursor-grabbing shadow-xl border-[#148922]/30"
       )}
     >
@@ -1309,7 +1555,18 @@ function TaskCard({ task, onClick, isOverlay, employees, allTasks, onTaskClick }
                     className="p-2 bg-gray-50 rounded-lg text-[10px] font-bold text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center justify-between transition-colors"
                   >
                     <div className="flex items-center gap-2">
-                      <span className={cn("w-1.5 h-1.5 rounded-full", child.status === 'Done' ? "bg-emerald-500" : child.status === 'In Progress' ? "bg-blue-500" : "bg-gray-300")} />
+                      <span
+                        className={cn(
+                          'w-1.5 h-1.5 rounded-full',
+                          child.status === 'Done'
+                            ? 'bg-emerald-500'
+                            : child.status === 'In Progress'
+                              ? 'bg-blue-500'
+                              : child.status === 'Review'
+                                ? 'bg-amber-500'
+                                : 'bg-gray-300'
+                        )}
+                      />
                       <span className="line-clamp-1">{child.title}</span>
                     </div>
                     <span className="text-[#148922]">{child.completionPercent}%</span>
@@ -1528,12 +1785,11 @@ function TaskDetailSheet({ isOpen, onClose, task, onUpdate, onSubstitution, empl
                     <div className="space-y-6">
                       {task.statusLogs.map((log: any) => {
                         const getStatusLabel = (s: string) => {
-                          const labels: any = {
-                            'Backlog': 'Khởi tạo',
+                          const labels: Record<string, string> = {
+                            Todo: 'Todo',
                             'In Progress': 'Đang làm',
-                            'In Review': 'Đang review',
-                            'Done': 'Hoàn thành',
-                            'Closed': 'Đã đóng'
+                            Review: 'Review',
+                            Done: 'Hoàn thành',
                           };
                           return labels[s] || s;
                         };
@@ -1647,7 +1903,7 @@ function DailyReviewPanel({ isOpen, onClose, tasks, onSave, employees }: any) {
 
   useEffect(() => {
     if (isOpen) {
-      setLogs(tasks.filter((t: any) => t.status !== 'Done' && t.status !== 'Closed').map((t: any) => ({
+      setLogs(tasks.filter((t: any) => t.status !== 'Done').map((t: any) => ({
         taskId: t.id,
         title: t.title,
         assigneeName: employees.find((e: any) => e.id === t.assigneeId)?.name || 'N/A',
@@ -1920,7 +2176,7 @@ function WorkScheduleTab({ schedules, tasks, employees, project, updateProject }
     // Generate planned shifts from tasks
     tasks.forEach(task => {
       if (!task.startDate || !task.dueDate || !task.assigneeId) return;
-      if (task.status === 'Closed') return;
+      if (task.status === 'Done') return;
 
       let current = parseISO(task.startDate);
       const end = parseISO(task.dueDate);

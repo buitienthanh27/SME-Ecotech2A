@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Calendar, Plus, Trash2, Play, CheckCircle2 } from 'lucide-react';
 import { Sprint } from '../../types';
 import { format, parseISO } from 'date-fns';
-import { Modal, Btn, Badge } from '../ui';
+import { Modal, Btn, Badge, showToast } from '../ui';
 
 interface Props {
   isOpen: boolean;
@@ -10,9 +10,32 @@ interface Props {
   sprints: Sprint[];
   onUpdate: (sprints: Sprint[]) => void;
   projectId: string;
+  projectStartDate: string;
+  projectEndDate: string;
 }
 
-export const SprintManagementModal: React.FC<Props> = ({ isOpen, onClose, sprints, onUpdate, projectId }) => {
+function sprintInsideProject(
+  sprintStart: string,
+  sprintEnd: string,
+  projectStart: string,
+  projectEnd: string
+): boolean {
+  return (
+    sprintStart >= projectStart &&
+    sprintEnd <= projectEnd &&
+    sprintStart <= sprintEnd
+  );
+}
+
+export const SprintManagementModal: React.FC<Props> = ({
+  isOpen,
+  onClose,
+  sprints,
+  onUpdate,
+  projectId,
+  projectStartDate,
+  projectEndDate,
+}) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newSprint, setNewSprint] = useState<Partial<Sprint>>({
     name: '',
@@ -26,7 +49,18 @@ export const SprintManagementModal: React.FC<Props> = ({ isOpen, onClose, sprint
 
   const handleAdd = () => {
     if (!newSprint.name) return;
-    
+    if (
+      !sprintInsideProject(
+        newSprint.startDate!,
+        newSprint.endDate!,
+        projectStartDate,
+        projectEndDate
+      )
+    ) {
+      showToast.error('Thời gian Sprint phải nằm trong timeline dự án (và ngày bắt đầu ≤ ngày kết thúc).');
+      return;
+    }
+
     const sprint: Sprint = {
       id: Math.random().toString(36).substr(2, 9),
       projectId,

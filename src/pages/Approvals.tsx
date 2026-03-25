@@ -15,17 +15,32 @@ import { ApprovalRequest } from '../types';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, FilterBar } from '../components/ui';
+import { canApprovePersonnelOnProject, isAdmin } from '../lib/permissions';
 
 export function Approvals() {
-  const { approvalRequests, projects, updateApprovalRequest, updateProject, currentUser } = useStore();
+  const { approvalRequests, projects, updateApprovalRequest, updateProject, currentUser } =
+    useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<ApprovalRequest | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
 
-  const filteredApprovals = useMemo(() =>
-    approvalRequests.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase())),
-    [approvalRequests, searchTerm]
+  const requestsForRole = useMemo(() => {
+    const role = currentUser?.role;
+    if (!role) return approvalRequests;
+    if (role === 'CEO' || isAdmin(role)) return approvalRequests;
+    if (role === 'PM' || role === 'Lead') {
+      return approvalRequests.filter((a) => a.requesterId === currentUser?.id);
+    }
+    return approvalRequests;
+  }, [approvalRequests, currentUser]);
+
+  const filteredApprovals = useMemo(
+    () =>
+      requestsForRole.filter((item) =>
+        item.title.toLowerCase().includes(searchTerm.toLowerCase())
+      ),
+    [requestsForRole, searchTerm]
   );
 
   const stats = useMemo(() => ({
@@ -34,11 +49,27 @@ export function Approvals() {
   }), [approvalRequests]);
 
   const handleApprove = (request: ApprovalRequest) => {
+    if (request.type === 'PersonnelProject' && !canApprovePersonnelOnProject(currentUser?.role ?? 'Employee')) {
+      toast.error('Chỉ CEO hoặc quản trị mới duyệt bổ sung nhân sự dự án.');
+      return;
+    }
     updateApprovalRequest(request.id, {
       status: 'Approved',
       processedAt: new Date().toISOString().split('T')[0],
       processedBy: currentUser?.id || 'CEO',
     });
+    if (request.type === 'PersonnelProject' && request.projectId && request.pendingMemberId) {
+      const proj = projects.find((p) => p.id === request.projectId);
+      if (proj) {
+        updateProject(request.projectId, {
+          members: proj.members.map((m) =>
+            m.id === request.pendingMemberId ? { ...m, approvalStatus: 'Approved' as const } : m
+          ),
+        });
+      }
+      toast.success('Đã duyệt nhân sự tham gia dự án.');
+      return;
+    }
     if (request.type === 'ProjectPlan' && request.projectId) {
       updateProject(request.projectId, { status: 'Đang thực hiện' });
       toast.success('Đã phê duyệt kế hoạch dự án. Dự án hiện đã có thể giao task.');
@@ -58,7 +89,19 @@ export function Approvals() {
       processedBy: currentUser?.id || 'CEO',
       note: rejectionReason,
     });
-    if (selectedRequest.type === 'ProjectPlan' && selectedRequest.projectId) {
+    if (selectedRequest.type === 'PersonnelProject' && selectedRequest.projectId && selectedRequest.pendingMemberId) {
+      const proj = projects.find((p) => p.id === selectedRequest.projectId);
+      if (proj) {
+        updateProject(selectedRequest.projectId, {
+          members: proj.members.map((m) =>
+            m.id === selectedRequest.pendingMemberId
+              ? { ...m, approvalStatus: 'Rejected' as const }
+              : m
+          ),
+        });
+      }
+      toast.success('Đã từ chối bổ sung nhân sự.');
+    } else if (selectedRequest.type === 'ProjectPlan' && selectedRequest.projectId) {
       updateProject(selectedRequest.projectId, { status: 'Draft', rejectionNote: rejectionReason });
       toast.success('Đã từ chối kế hoạch dự án.');
     } else {
@@ -100,6 +143,7 @@ export function Approvals() {
           <ApprovalItem
             key={item.id}
             item={item}
+            canApprove={item.type !== 'PersonnelProject' || canApprovePersonnelOnProject(currentUser?.role ?? 'Employee')}
             onApprove={() => handleApprove(item)}
             onReject={() => { setSelectedRequest(item); setIsRejectModalOpen(true); }}
             onViewDetails={() => setSelectedRequest(item)}
@@ -167,7 +211,7 @@ export function Approvals() {
   );
 }
 
-function ApprovalItem({ item, onApprove, onReject, onViewDetails }: any) {
+function ApprovalItem({ item, canApprove = true, onApprove, onReject, onViewDetails }: any) {
   const { employees } = useStore();
   const requester = employees.find(e => e.id === item.requesterId);
 
@@ -191,7 +235,7 @@ function ApprovalItem({ item, onApprove, onReject, onViewDetails }: any) {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3 flex-1 min-w-[260px]">
           <div className={`w-11 h-11 rounded-[10px] flex items-center justify-center ${config.bg} ${config.color}`}>
-            {item.type === 'ProjectPlan' ? <FileText className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />}
+            {item.type === 'ProjectPlan' ? <FileText className="w-5 h-5" /> : item.type === 'PersonnelProject' ? <User className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />}
           </div>
           <div>
             <div className="flex items-center gap-2 mb-0.5">
@@ -216,12 +260,16 @@ function ApprovalItem({ item, onApprove, onReject, onViewDetails }: any) {
               <button onClick={onViewDetails} className="p-1.5 text-[#718096] hover:text-[#148922] hover:bg-[#ECFDF5] rounded-[6px] transition-all" title="Xem chi tiết">
                 <Eye className="w-4 h-4" />
               </button>
-              <button onClick={onApprove} className="px-3 py-1.5 bg-[#ECFDF5] text-[#148922] rounded-[8px] text-[13px] font-bold hover:bg-green-100 transition-all flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Duyệt
-              </button>
-              <button onClick={onReject} className="px-3 py-1.5 bg-[#FEE2E2] text-[#EF4444] rounded-[8px] text-[13px] font-bold hover:bg-red-100 transition-all flex items-center gap-1.5">
-                <XCircle className="w-3.5 h-3.5" /> Từ chối
-              </button>
+              {canApprove && (
+                <button onClick={onApprove} className="px-3 py-1.5 bg-[#ECFDF5] text-[#148922] rounded-[8px] text-[13px] font-bold hover:bg-green-100 transition-all flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Duyệt
+                </button>
+              )}
+              {canApprove && (
+                <button onClick={onReject} className="px-3 py-1.5 bg-[#FEE2E2] text-[#EF4444] rounded-[8px] text-[13px] font-bold hover:bg-red-100 transition-all flex items-center gap-1.5">
+                  <XCircle className="w-3.5 h-3.5" /> Từ chối
+                </button>
+              )}
             </>
           ) : (
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-[8px] text-[13px] font-bold ${config.bg} ${config.color}`}>
@@ -242,6 +290,36 @@ function RequestDetailModal({ request, onClose, onApprove, onReject }: { request
   const fmt = (n: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(n);
 
   if (!project) return null;
+
+  if (request.type === 'PersonnelProject' && request.pendingMemberId) {
+    const member = project.members.find((m) => m.id === request.pendingMemberId);
+    const emp = employees.find((e) => e.id === member?.employeeId);
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-[12px] shadow-2xl w-full max-w-md border border-[#E2E8F0] overflow-hidden"
+        >
+          <div className="px-6 py-4 border-b border-[#E2E8F0] flex justify-between items-center">
+            <h3 className="text-[16px] font-bold text-[#1A202C]">Duyệt nhân sự dự án</h3>
+            <button type="button" onClick={onClose} className="p-2 hover:bg-[#F1F5F9] rounded-[8px]">
+              <XCircle className="w-5 h-5 text-[#718096]" />
+            </button>
+          </div>
+          <div className="p-6 space-y-2 text-[14px]">
+            <p><span className="text-[#718096]">Dự án:</span> <span className="font-bold">{project.name}</span></p>
+            <p><span className="text-[#718096]">Nhân sự:</span> <span className="font-bold">{emp?.name || '—'}</span></p>
+            <p><span className="text-[#718096]">Vai trò:</span> <span className="font-bold">{member?.role}</span></p>
+          </div>
+          <div className="px-6 py-4 bg-[#F8FAFC] border-t border-[#E2E8F0] flex justify-end gap-2">
+            <button type="button" onClick={onReject} className="px-4 py-2 border border-[#EF4444] text-[#EF4444] rounded-[8px] text-[13px] font-bold">Từ chối</button>
+            <button type="button" onClick={onApprove} className="px-4 py-2 bg-[#148922] text-white rounded-[8px] text-[13px] font-bold">Duyệt</button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">

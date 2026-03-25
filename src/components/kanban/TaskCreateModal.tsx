@@ -28,7 +28,7 @@ export const TaskCreateModal: React.FC<Props> = ({ isOpen, onClose, onCreate, sp
       description,
       priority,
       type,
-      status: 'Backlog',
+      status: 'Todo',
       dueDate,
       estimatedHours,
       assigneeId,

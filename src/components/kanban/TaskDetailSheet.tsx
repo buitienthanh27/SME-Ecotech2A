@@ -191,12 +191,11 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
     'Thấp': 'bg-gray-50 text-gray-700',
   };
 
-  const statusColors = {
-    'Backlog': 'bg-gray-50 text-gray-700',
+  const statusColors: Record<TaskStatus, string> = {
+    Todo: 'bg-gray-50 text-gray-700',
     'In Progress': 'bg-blue-50 text-blue-700',
-    'In Review': 'bg-purple-50 text-purple-700',
-    'Done': 'bg-emerald-50 text-emerald-700',
-    'Closed': 'bg-gray-500 text-white',
+    Review: 'bg-purple-50 text-purple-700',
+    Done: 'bg-emerald-50 text-emerald-700',
   };
 
   const assignee = members.find(m => m.id === editedTask.assigneeId);
@@ -227,15 +226,17 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
 
           <div className="flex items-center gap-4">
              <select 
-               className={clsx("text-xs font-bold px-3 py-1.5 rounded-xl border-none focus:ring-0 cursor-pointer", statusColors[editedTask.status])}
+               className={clsx(
+                 'text-xs font-bold px-3 py-1.5 rounded-xl border-none focus:ring-0 cursor-pointer',
+                 statusColors[editedTask.status] ?? 'bg-gray-50 text-gray-700'
+               )}
                value={editedTask.status}
                onChange={(e) => handleChange('status', e.target.value as TaskStatus)}
              >
-               <option value="Backlog">Khởi tạo</option>
+               <option value="Todo">Todo</option>
                <option value="In Progress">Đang làm</option>
-               <option value="In Review">Đang review</option>
+               <option value="Review">Review</option>
                <option value="Done">Hoàn thành</option>
-               <option value="Closed">Đã đóng</option>
              </select>
              <select 
                className={clsx("text-xs font-bold px-3 py-1.5 rounded-xl border-none focus:ring-0 cursor-pointer", priorityColors[editedTask.priority])}
@@ -399,12 +400,11 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
               <div className="space-y-4">
                 {editedTask.statusLogs.map((log) => {
                   const getStatusLabel = (s: string) => {
-                    const labels: any = {
-                      'Backlog': 'Khởi tạo',
+                    const labels: Record<string, string> = {
+                      Todo: 'Todo',
                       'In Progress': 'Đang làm',
-                      'In Review': 'Đang review',
-                      'Done': 'Hoàn thành',
-                      'Closed': 'Đã đóng'
+                      Review: 'Review',
+                      Done: 'Hoàn thành',
                     };
                     return labels[s] || s;
                   };
@@ -553,7 +553,7 @@ export const TaskDetailSheet: React.FC<Props> = ({ task, members, logs, onClose,
           <button 
             onClick={() => onSubstitute(task.id)}
             className="text-sm font-bold text-red-600 hover:text-red-700 disabled:opacity-50"
-            disabled={editedTask.status === 'Closed'}
+            disabled={editedTask.status === 'Done'}
           >
             Thay thế nhân sự
           </button>

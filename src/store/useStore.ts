@@ -66,6 +66,9 @@ interface StoreState {
   updateApprovalRequest: (id: string, updates: Partial<ApprovalRequest>) => void;
   addPersonnelRequest: (request: PersonnelRequest) => void;
   updatePersonnelRequest: (id: string, updates: Partial<PersonnelRequest>) => void;
+  addCustomer: (customer: Customer) => void;
+  updateCustomer: (id: string, updates: Partial<Customer>) => void;
+  deleteCustomer: (id: string) => void;
   addCashFlowEntry: (entry: CashFlowEntry) => void;
   setProjects: (projects: Project[]) => void;
   updateEmployee: (id: string, updates: Partial<Employee>) => void;
@@ -342,9 +345,63 @@ export const useStore = create<StoreState>((set) => ({
     },
   ],
   customers: [
-    { id: 'c1', name: 'VinGroup', email: 'contact@vingroup.com', phone: '024 3974 9999', address: 'Số 7 Đường Bàng Lang 1, Phường Việt Hùng, Quận Long Biên, Hà Nội' },
-    { id: 'c2', name: 'Sun Group', email: 'info@sungroup.com.vn', phone: '024 3939 3399', address: 'Tầng 9, Tòa nhà Sun City, 13 Hai Bà Trung, Hoàn Kiếm, Hà Nội' },
-    { id: 'c3', name: 'Viettel', email: 'support@viettel.com.vn', phone: '1800 8098', address: 'Số 1 Trần Hữu Đức, Mễ Trì 2, Nam Từ Liêm, Hà Nội' },
+    {
+      id: 'c1',
+      code: 'CUS-001',
+      companyName: 'VinGroup',
+      name: 'VinGroup',
+      taxCode: '0101245486',
+      email: 'contact@vingroup.com',
+      phone: '024 3974 9999',
+      address: 'Số 7 Đường Bàng Lang 1, Phường Việt Hùng, Quận Long Biên, Hà Nội',
+      contactPerson: 'Nguyễn Minh Đức',
+      industry: 'Bất động sản',
+      companySize: 'Enterprise',
+      status: 'Đang hợp tác',
+      priority: 'High',
+      source: 'Giới thiệu',
+      note: 'Khách hàng chiến lược',
+      totalRevenue: 1800000000,
+      totalDebt: 120000000,
+    },
+    {
+      id: 'c2',
+      code: 'CUS-002',
+      companyName: 'Sun Group',
+      name: 'Sun Group',
+      taxCode: '0103659676',
+      email: 'info@sungroup.com.vn',
+      phone: '024 3939 3399',
+      address: 'Tầng 9, Tòa nhà Sun City, 13 Hai Bà Trung, Hoàn Kiếm, Hà Nội',
+      contactPerson: 'Lê Thị Thanh Hà',
+      industry: 'Du lịch',
+      companySize: 'Large',
+      status: 'Đang hợp tác',
+      priority: 'Medium',
+      source: 'Đấu thầu',
+      note: '',
+      totalRevenue: 950000000,
+      totalDebt: 0,
+    },
+    {
+      id: 'c3',
+      code: 'CUS-003',
+      companyName: 'Viettel',
+      name: 'Viettel',
+      taxCode: '0100109106',
+      email: 'support@viettel.com.vn',
+      phone: '1800 8098',
+      address: 'Số 1 Trần Hữu Đức, Mễ Trì 2, Nam Từ Liêm, Hà Nội',
+      contactPerson: 'Phạm Quốc Bảo',
+      industry: 'Viễn thông',
+      companySize: 'Enterprise',
+      status: 'Tiềm năng',
+      priority: 'High',
+      source: 'Cold outbound',
+      note: 'Đang trao đổi scope giai đoạn 2',
+      totalRevenue: 0,
+      totalDebt: 0,
+    },
   ],
   employees: seedEmployees,
   departments: DEPARTMENTS_SEED.map((d) => ({ ...d })),
@@ -413,6 +470,19 @@ export const useStore = create<StoreState>((set) => ({
   updatePersonnelRequest: (id, updates) => set((state) => ({
     personnelRequests: state.personnelRequests.map((r) => (r.id === id ? { ...r, ...updates } : r))
   })),
+  addCustomer: (customer) => set((state) => ({ customers: [customer, ...state.customers] })),
+  updateCustomer: (id, updates) =>
+    set((state) => ({
+      customers: state.customers.map((c) => {
+        if (c.id !== id) return c;
+        const nextCompanyName = updates.companyName ?? c.companyName ?? c.name;
+        return { ...c, ...updates, companyName: nextCompanyName, name: nextCompanyName };
+      }),
+    })),
+  deleteCustomer: (id) =>
+    set((state) => ({
+      customers: state.customers.filter((c) => c.id !== id),
+    })),
   addCashFlowEntry: (entry) => set((state) => ({ cashFlowEntries: [entry, ...state.cashFlowEntries] })),
   setProjects: (projects) => set({ projects }),
   updateEmployee: (id, updates) =>

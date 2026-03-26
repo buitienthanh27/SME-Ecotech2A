@@ -64,10 +64,23 @@ export interface Project {
 
 export interface Customer {
   id: string;
+  code?: string;
+  companyName?: string;
   name: string;
+  taxCode?: string;
   email: string;
   phone: string;
   address: string;
+  contactPerson?: string;
+  industry?: string;
+  companySize?: string;
+  status?: 'Tiềm năng' | 'Đang hợp tác' | 'Ngừng hợp tác';
+  priority?: 'High' | 'Medium' | 'Low';
+  assignedTo?: string;
+  source?: string;
+  note?: string;
+  totalRevenue?: number;
+  totalDebt?: number;
 }
 
 export interface ApprovalRequest {

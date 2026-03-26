@@ -8,6 +8,7 @@ import {
   LogOut,
   TrendingUp,
   FileText,
+  Building2,
   ChevronLeft,
   ChevronRight,
   CheckSquare,
@@ -21,6 +22,7 @@ import { canAccessRoute } from '../lib/permissions';
 const navItems = [
   { icon: LayoutDashboard, label: 'Bảng điều khiển', path: '/' },
   { icon: FileText,         label: 'Hợp đồng',         path: '/contracts' },
+  { icon: Building2,        label: 'Khách hàng',       path: '/customers' },
   { icon: Briefcase,        label: 'Dự án',             path: '/projects' },
   { icon: Users,            label: 'Nhân sự',           path: '/personnel' },
   { icon: Wallet,           label: 'Bảng lương',        path: '/payroll' },

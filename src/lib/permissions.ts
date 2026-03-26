@@ -8,6 +8,7 @@ export function isAdmin(role: AppRole): boolean {
 /** Route: Admin xem tất cả màn */
 export const ROUTE_ROLES: Record<string, AppRole[]> = {
   '': ['Admin', 'CEO', 'PM', 'Lead', 'Accountant', 'HR', 'Employee'],
+  customers: ['Admin', 'CEO', 'PM'],
   contracts: ['Admin', 'CEO', 'PM', 'Lead', 'Accountant'],
   projects: ['Admin', 'CEO', 'PM', 'Lead', 'Accountant', 'Employee'],
   personnel: ['Admin', 'CEO', 'HR'],

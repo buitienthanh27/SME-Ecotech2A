@@ -17,6 +17,7 @@ import { ProjectBoard } from './pages/ProjectBoard';
 import { ProjectBonuses } from './pages/ProjectBonuses';
 import { SprintReport } from './pages/SprintReport';
 import { Contracts } from './pages/Contracts';
+import { Customers } from './pages/Customers';
 
 import { Toaster } from 'react-hot-toast';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -28,6 +29,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
           <Route path="contracts" element={<ProtectedRoute><Contracts /></ProtectedRoute>} />
           <Route path="projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
           <Route path="projects/:id/board" element={<ProtectedRoute><ProjectBoard /></ProtectedRoute>} />

@@ -127,12 +127,13 @@ export function ProjectBoard() {
   const [activeTab, setActiveTab] = useState<'kanban' | 'personnel' | 'schedule'>('kanban');
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [isAddPersonnelOpen, setIsAddPersonnelOpen] = useState(false);
+  const [isSendPersonnelApprovalOpen, setIsSendPersonnelApprovalOpen] = useState(false);
   const [inactivatingMember, setInactivatingMember] = useState<{ id: string; name: string } | null>(null);
   const [inactiveReason, setInactiveReason] = useState('');
   const [sprintScope, setSprintScope] = useState<string>('all');
   const [isSprintManageOpen, setIsSprintManageOpen] = useState(false);
 
-  const { projects, employees, departments, updateProject, personnelRequests, updatePersonnelRequest, currentUser, addApprovalRequest } =
+  const { projects, employees, departments, updateProject, personnelRequests, updatePersonnelRequest, currentUser, addPersonnelRequest } =
     useStore();
   const project = id ? projects.find(p => p.id === id) : projects[0];
   const projectMembers = project?.members || [];
@@ -500,28 +501,89 @@ export function ProjectBoard() {
 
   const handleAddMember = (newMember: ProjectMember) => {
     if (!project || !currentUser) return;
-    const needsCeo = currentUser.role === 'Lead';
-    const member: ProjectMember = needsCeo
-      ? { ...newMember, approvalStatus: 'Pending' }
-      : { ...newMember, approvalStatus: 'Approved' };
+
+    const isDeptHead = departments.some((d) => d.headId === currentUser.id);
+    const needsPmApproval = isDeptHead && !hasProjectManagerPrivileges(currentUser.role);
+
+    const today = new Date().toISOString().split('T')[0];
+    const normalized: ProjectMember = {
+      ...newMember,
+      startDate: newMember.startDate || today,
+      endDate: newMember.endDate || project.endDate,
+      allocation: Number.isFinite(newMember.allocation) ? newMember.allocation : 100,
+    };
+
+    const member: ProjectMember = needsPmApproval
+      ? { ...normalized, approvalStatus: 'Pending' }
+      : { ...normalized, approvalStatus: 'Approved' };
+
     updateProject(project.id, { members: [...project.members, member] });
-    if (needsCeo) {
-      addApprovalRequest({
-        id: `apr-${Date.now()}`,
-        title: `Duyệt nhân sự dự án ${project.name}`,
-        type: 'PersonnelProject',
-        priority: 'Medium',
-        targetRole: 'CEO',
+
+    showToast.success(needsPmApproval ? 'Đã thêm nhân sự vào danh sách chờ duyệt.' : 'Đã thêm 1 nhân sự vào dự án.');
+  };
+
+  const handleRemovePendingMember = (memberId: string) => {
+    if (!project || !currentUser) return;
+    const isAdmin = currentUser.role === 'Admin';
+    const isDeptHead = departments.some((d) => d.headId === currentUser.id);
+    if (!isAdmin && !isDeptHead) return;
+
+    const member = project.members.find((m) => m.id === memberId);
+    if (!member) return;
+    if (member.approvalStatus !== 'Pending') return;
+
+    const hasPendingRequest = personnelRequests.some(
+      (r) =>
+        r.projectId === project.id &&
+        r.status === 'Pending' &&
+        r.employeeId === member.employeeId &&
+        r.role === member.role
+    );
+    if (hasPendingRequest) {
+      showToast.error('Nhân sự này đã được gửi duyệt. Vui lòng thao tác sau khi PM xử lý.');
+      return;
+    }
+
+    updateProject(project.id, {
+      members: project.members.filter((m) => m.id !== memberId),
+    });
+    showToast.success('Đã xóa nhân sự chờ duyệt.');
+  };
+
+  const handleSendPersonnelApproval = (memberIds: string[]) => {
+    if (!project || !currentUser) return;
+    const isAdmin = currentUser.role === 'Admin';
+    const isDeptHead = departments.some((d) => d.headId === currentUser.id);
+    if (!isAdmin && !isDeptHead) return;
+
+    const selectedMembers = project.members.filter(
+      (m) => memberIds.includes(m.id) && m.approvalStatus === 'Pending'
+    );
+
+    const existingPendingKeys = new Set(
+      personnelRequests
+        .filter((r) => r.projectId === project.id && r.status === 'Pending')
+        .map((r) => `${r.employeeId}::${r.role}`)
+    );
+
+    selectedMembers.forEach((m) => {
+      const key = `${m.employeeId}::${m.role}`;
+      if (existingPendingKeys.has(key)) return;
+
+      addPersonnelRequest({
+        id: `pr-${Date.now()}-${m.id}`,
         projectId: project.id,
-        pendingMemberId: member.id,
+        requestedBy: currentUser.id,
+        employeeId: m.employeeId,
+        role: m.role,
+        allocation: m.allocation,
         status: 'Pending',
-        submittedBy: currentUser.name,
-        requesterId: currentUser.id,
-        submittedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       });
-      showToast.success('Đã gửi yêu cầu duyệt nhân sự lên CEO.');
-    }
+    });
+
+    showToast.success('Đã gửi duyệt nhân sự lên PM.');
+    setIsSendPersonnelApprovalOpen(false);
   };
 
   const handleToggleMemberStatus = (memberId: string, currentStatus: 'Active' | 'Inactive') => {
@@ -632,6 +694,41 @@ export function ProjectBoard() {
     return groups;
   }, [projectPersonnel, currentUser, departments]);
 
+  const leadDepartment = useMemo(() => {
+    return departments.find((d) => d.headId === currentUser?.id) || null;
+  }, [currentUser, departments]);
+
+  const pendingMembersToSend = useMemo(() => {
+    if (!project || !selectedDepartment || !currentUser) return [];
+
+    const alreadyPendingKeys = new Set(
+      personnelRequests
+        .filter((r) => r.projectId === project.id && r.status === 'Pending')
+        .map((r) => `${r.employeeId}::${r.role}`)
+    );
+
+    const isAdmin = currentUser.role === 'Admin';
+    const isDeptHead = departments.some((d) => d.headId === currentUser.id);
+    const canSendHere = isAdmin || (isDeptHead && leadDepartment?.name === selectedDepartment);
+    if (!canSendHere) return [];
+
+    return project.members
+      .filter((m) => m.approvalStatus === 'Pending')
+      .filter((m) => {
+        const emp = employees.find((e) => e.id === m.employeeId);
+        if (!emp) return false;
+        const empDeptName =
+          emp.departmentId
+            ? departments.find((d) => d.id === emp.departmentId)?.name
+            : emp.department;
+        return empDeptName === selectedDepartment;
+      })
+      .filter((m) => {
+        const key = `${m.employeeId}::${m.role}`;
+        return !alreadyPendingKeys.has(key);
+      });
+  }, [project, selectedDepartment, currentUser, employees, departments, personnelRequests, leadDepartment?.name]);
+
   return (
     <div className="space-y-4 animate-in fade-in duration-500 max-w-[1920px] mx-auto w-full pb-6">
       {/* Thanh điều hướng + tên dự án */}
@@ -677,32 +774,6 @@ export function ProjectBoard() {
           >
             <FileText className="h-4 w-4" />
             Báo cáo
-          </button>
-          <button
-            type="button"
-            disabled={!canCreateTask}
-            title={
-              !canCreateTask
-                ? sprintScope === 'all'
-                  ? 'Chọn một Sprint ở ô Phạm vi — không tạo task khi đang xem toàn bộ dự án'
-                  : 'Thêm ít nhất một Sprint trong Quản lý Sprint'
-                : 'Tạo task mới trong phạm vi đang chọn'
-            }
-            onClick={() => {
-              if (!canCreateTask) {
-                showToast.error(
-                  sprintScope === 'all'
-                    ? 'Vui lòng chọn một Sprint ở ô Phạm vi trước khi tạo task.'
-                    : 'Cần có ít nhất một Sprint để tạo task.'
-                );
-                return;
-              }
-              setIsCreateTaskOpen(true);
-            }}
-            className="flex items-center gap-2 rounded-xl bg-[#148922] px-5 py-2 text-sm font-bold text-white shadow-md shadow-[#148922]/20 transition-all hover:bg-[#0E6318] disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            <Plus className="h-4 w-4" />
-            Tạo task
           </button>
         </div>
       </div>
@@ -829,9 +900,10 @@ export function ProjectBoard() {
         </div>
       </div>
 
-      {/* Tab + phạm vi sprint — một hàng trên desktop */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-2 sm:p-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex w-full min-w-0 flex-wrap gap-1 lg:w-auto">
+      {/* Tab + phạm vi sprint (hành động tạo task nằm dưới) */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-2 sm:p-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex w-full min-w-0 flex-wrap gap-1 lg:w-auto">
           <button
             type="button"
             onClick={() => setActiveTab('kanban')}
@@ -871,33 +943,66 @@ export function ProjectBoard() {
             <Calendar className="h-4 w-4 shrink-0" />
             Lịch
           </button>
+          </div>
+
+          <div className="flex flex-col gap-2 border-t border-[#E2E8F0] pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:border-t-0 sm:pt-0 lg:border-l lg:pl-4">
+            <div className="flex items-center gap-2">
+              <List className="h-4 w-4 shrink-0 text-[#64748B]" />
+              <span className="text-[11px] font-black uppercase tracking-wider text-[#64748B]">Sprint</span>
+            </div>
+            <select
+              value={sprintScope}
+              onChange={(e) => setSprintScope(e.target.value)}
+              className="min-h-[40px] min-w-0 flex-1 rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-bold text-[#1A202C] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#148922]/20 sm:min-w-[220px] sm:flex-none"
+            >
+              <option value="all">Toàn bộ dự án</option>
+              {projectSprints.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.status})
+                </option>
+              ))}
+            </select>
+            <div className="flex flex-col gap-2 sm:items-end">
+              <button
+                type="button"
+                onClick={() => setIsSprintManageOpen(true)}
+                className="min-h-[40px] shrink-0 rounded-xl border border-[#148922]/40 bg-white px-4 py-2 text-sm font-bold text-[#148922] transition-colors hover:bg-[#ECFDF5]"
+              >
+                Quản lý Sprint
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-2 border-t border-[#E2E8F0] pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:border-t-0 sm:pt-0 lg:border-l lg:pl-4">
-          <div className="flex items-center gap-2">
-            <List className="h-4 w-4 shrink-0 text-[#64748B]" />
-            <span className="text-[11px] font-black uppercase tracking-wider text-[#64748B]">Sprint</span>
-          </div>
-          <select
-            value={sprintScope}
-            onChange={(e) => setSprintScope(e.target.value)}
-            className="min-h-[40px] min-w-0 flex-1 rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-bold text-[#1A202C] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#148922]/20 sm:min-w-[220px] sm:flex-none"
-          >
-            <option value="all">Toàn bộ dự án</option>
-            {projectSprints.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({s.status})
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => setIsSprintManageOpen(true)}
-            className="min-h-[40px] shrink-0 rounded-xl border border-[#148922]/40 bg-white px-4 py-2 text-sm font-bold text-[#148922] transition-colors hover:bg-[#ECFDF5]"
-          >
-            Quản lý Sprint
-          </button>
-        </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+        <button
+          type="button"
+          disabled={!canCreateTask}
+          title={
+            !canCreateTask
+              ? sprintScope === 'all'
+                ? 'Chọn một Sprint ở ô Phạm vi — không tạo task khi đang xem toàn bộ dự án'
+                : 'Thêm ít nhất một Sprint trong Quản lý Sprint'
+              : 'Tạo task mới trong phạm vi đang chọn'
+          }
+          onClick={() => {
+            if (!canCreateTask) {
+              showToast.error(
+                sprintScope === 'all'
+                  ? 'Vui lòng chọn một Sprint ở ô Phạm vi trước khi tạo task.'
+                  : 'Cần có ít nhất một Sprint để tạo task.'
+              );
+              return;
+            }
+            setIsCreateTaskOpen(true);
+          }}
+          className="min-h-[40px] w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-[#148922] px-5 py-2 text-sm font-bold text-white shadow-md shadow-[#148922]/20 transition-all hover:bg-[#0E6318] disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <Plus className="h-4 w-4" />
+          Tạo task
+        </button>
+      </div>
+
       </div>
 
       {activeTab === 'kanban' ? (
@@ -951,21 +1056,56 @@ export function ProjectBoard() {
             <PersonnelRequestsPanel
               projectId={project.id}
               onApprove={(req: any) => {
-                const newMember: ProjectMember = {
-                  id: `m-${Date.now()}`,
-                  employeeId: req.employeeId,
-                  projectId: req.projectId,
-                  role: req.role,
-                  allocation: req.allocation,
-                  startDate: new Date().toISOString().split('T')[0],
-                  endDate: project.endDate,
-                  status: 'Active'
-                };
-                updateProject(project.id, { members: [...project.members, newMember] });
-                updatePersonnelRequest(req.id, { status: 'Approved', processedBy: currentUser.id, processedAt: new Date().toISOString() });
+                const matched = project.members.find(
+                  (m) => m.employeeId === req.employeeId && m.role === req.role
+                );
+
+                if (matched) {
+                  updateProject(project.id, {
+                    members: project.members.map((m) =>
+                      m.id === matched.id
+                        ? { ...m, status: 'Active', approvalStatus: 'Approved', endDate: project.endDate }
+                        : m
+                    ),
+                  });
+                } else {
+                  // Fallback: nếu member chưa tồn tại trong project (tùy dữ liệu), thêm mới ở trạng thái Approved
+                  const newMember: ProjectMember = {
+                    id: `m-${Date.now()}`,
+                    employeeId: req.employeeId,
+                    projectId: req.projectId,
+                    role: req.role,
+                    allocation: req.allocation,
+                    startDate: new Date().toISOString().split('T')[0],
+                    endDate: project.endDate,
+                    status: 'Active',
+                    approvalStatus: 'Approved',
+                  };
+                  updateProject(project.id, { members: [...project.members, newMember] });
+                }
+
+                updatePersonnelRequest(req.id, {
+                  status: 'Approved',
+                  processedBy: currentUser.id,
+                  processedAt: new Date().toISOString(),
+                });
+                showToast.success('Đã duyệt nhân sự dự án.');
               }}
               onReject={(req: any) => {
-                updatePersonnelRequest(req.id, { status: 'Rejected', processedBy: currentUser.id, processedAt: new Date().toISOString() });
+                updateProject(project.id, {
+                  members: project.members.map((m) =>
+                    m.employeeId === req.employeeId && m.role === req.role
+                      ? { ...m, approvalStatus: 'Rejected' }
+                      : m
+                  ),
+                });
+
+                updatePersonnelRequest(req.id, {
+                  status: 'Rejected',
+                  processedBy: currentUser.id,
+                  processedAt: new Date().toISOString(),
+                });
+                showToast.success('Đã từ chối bổ sung nhân sự.');
               }}
               employees={employees}
               requests={personnelRequests || []}
@@ -991,7 +1131,8 @@ export function ProjectBoard() {
                       </p>
                     </div>
                   </div>
-                  {departments.find((d) => d.headId === currentUser?.id)?.name === selectedDepartment && (
+                  {(hasProjectManagerPrivileges(currentUser?.role ?? 'Employee') ||
+                    leadDepartment?.name === selectedDepartment) && (
                     <button
                       onClick={() => setIsAddPersonnelOpen(true)}
                       className="flex items-center gap-2 bg-[#148922] text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-[#0b6b17] transition-all shadow-lg shadow-[#148922]/20"
@@ -999,7 +1140,16 @@ export function ProjectBoard() {
                       <UserPlus className="w-4 h-4" />
                       Thêm nhân sự
                     </button>
-                  )}
+                  )}4
+                  {pendingMembersToSend.length > 0 && (
+                      <button
+                        onClick={() => setIsSendPersonnelApprovalOpen(true)}
+                        className="flex items-center gap-2 bg-[#F59E0B] text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-[#D97706] transition-all shadow-lg shadow-[#F59E0B]/20"
+                      >
+                        <Send className="w-4 h-4" />
+                        Gửi duyệt nhân sự ({pendingMembersToSend.length})
+                      </button>
+                    )}
                 </div>
 
                 <div className="p-8">
@@ -1061,15 +1211,29 @@ export function ProjectBoard() {
                               </td>
                               <td className="px-6 py-4 text-center">
                                 <button
-                                  onClick={() => handleToggleMemberStatus(m.id, m.status)}
+                                  type="button"
+                                  disabled={m.approvalStatus !== 'Approved'}
+                                  onClick={() => {
+                                    if (m.approvalStatus === 'Approved') {
+                                      handleToggleMemberStatus(m.id, m.status);
+                                    }
+                                  }}
                                   className={cn(
                                     "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest transition-all",
-                                    m.status === 'Active'
-                                      ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                                    m.approvalStatus === 'Pending'
+                                      ? "bg-amber-100 text-amber-700"
+                                      : m.approvalStatus === 'Rejected'
+                                        ? "bg-red-100 text-red-600"
+                                        : m.status === 'Active'
+                                          ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                          : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                                   )}
                                 >
-                                  {m.status}
+                                  {m.approvalStatus === 'Pending'
+                                    ? 'Pending'
+                                    : m.approvalStatus === 'Rejected'
+                                      ? 'Rejected'
+                                      : m.status}
                                 </button>
                               </td>
                               <td className="px-6 py-4 text-right">
@@ -1090,13 +1254,26 @@ export function ProjectBoard() {
                 <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gray-50/10">
                   <div>
                     <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Các bộ phận tham gia dự án</h3>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{Object.keys(groupedPersonnel).length} phòng ban được thêm vào</p>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
+                      {leadDepartment
+                        ? Object.entries(groupedPersonnel).filter(
+                            ([deptName]) =>
+                              leadDepartment?.name === deptName
+                          ).length
+                        : Object.keys(groupedPersonnel).length}
+                      {' '}phòng ban được thêm vào
+                    </p>
                   </div>
                 </div>
                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {Object.entries(groupedPersonnel).map(([deptName, membersList]) => {
+                  {Object.entries(groupedPersonnel)
+                    .filter(([deptName]) => {
+                      if (!leadDepartment) return true;
+                      return leadDepartment.name === deptName;
+                    })
+                    .map(([deptName, membersList]) => {
                     const members = membersList as any[];
-                    const isManaged = departments.find((d) => d.headId === currentUser?.id)?.name === deptName;
+                    const isManaged = leadDepartment?.name === deptName;
                     return (
                       <div
                         key={deptName}
@@ -1246,10 +1423,26 @@ export function ProjectBoard() {
             onClose={() => setIsAddPersonnelOpen(false)}
             projectId={project?.id || ''}
             onAdd={handleAddMember}
-            existingMemberIds={projectMembers.map(m => String(m.employeeId).replace('e', ''))}
+            existingMemberIds={projectMembers.map((m) => String(m.employeeId))}
+            departmentId={
+              selectedDepartment
+                ? departments.find((d) => d.name === selectedDepartment)?.id
+                : undefined
+            }
+            departmentName={selectedDepartment ?? undefined}
           />
         )}
       </AnimatePresence>
+
+      {/* Lead: Gửi duyệt nhân sự */}
+      <SendPersonnelApprovalModal
+        isOpen={isSendPersonnelApprovalOpen}
+        onClose={() => setIsSendPersonnelApprovalOpen(false)}
+        pendingMembers={pendingMembersToSend}
+        employees={employees}
+        onRemovePendingMember={handleRemovePendingMember}
+        onSend={handleSendPersonnelApproval}
+      />
 
 
       {/* Confirmation for Inactivation */}
@@ -2801,54 +2994,260 @@ const PersonnelRequestsPanel: React.FC<{
   employees: any[];
 }> = ({ projectId, onApprove, onReject, requests, employees }) => {
   const pendingRequests = requests.filter(r => r.projectId === projectId && r.status === 'Pending');
+  const approvedRequests = requests.filter(r => r.projectId === projectId && r.status === 'Approved');
+  const rejectedRequests = requests.filter(r => r.projectId === projectId && r.status === 'Rejected');
 
-  if (pendingRequests.length === 0) return null;
+  if (pendingRequests.length === 0 && approvedRequests.length === 0 && rejectedRequests.length === 0) return null;
 
   return (
     <div className="bg-[#FEF3C7] rounded-[2.5rem] border border-[#F59E0B] shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 mb-6">
       <div className="p-8 border-b border-[#F59E0B] flex items-center justify-between">
         <div className="flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-[#B45309]" />
-          <h3 className="text-xl font-black text-[#B45309] uppercase tracking-tight">Yêu cầu thêm nhân sự chờ duyệt ({pendingRequests.length})</h3>
+          <h3 className="text-xl font-black text-[#B45309] uppercase tracking-tight">
+            Nhân sự chờ duyệt / đã xử lý
+          </h3>
         </div>
       </div>
       <div className="p-6">
-        <div className="space-y-4">
-          {pendingRequests.map(req => {
-            const requester = employees.find(e => e.id === req.requestedBy);
-            const targetEmp = employees.find(e => e.id === req.employeeId);
-            return (
-              <div key={req.id} className="bg-white p-4 rounded-xl border border-amber-100 flex items-center justify-between shadow-sm">
-                <div>
-                  <p className="text-sm font-bold text-gray-900 mb-1">
-                    <span className="text-amber-600">{requester?.name}</span> yêu cầu thêm <span className="text-blue-600">{targetEmp?.name}</span> vào dự án
-                  </p>
-                  <div className="flex gap-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                    <span>Vai trò: {req.role}</span>
-                    <span>Phân bổ: {req.allocation}%</span>
-                    <span>Vào lúc: {new Date(req.createdAt).toLocaleDateString('vi-VN')}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => onReject(req)}
-                    className="px-4 py-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 font-bold text-xs uppercase tracking-widest rounded-lg transition-all"
-                  >
-                    Từ chối
-                  </button>
-                  <button
-                    onClick={() => onApprove(req)}
-                    className="px-4 py-2 bg-[#148922] hover:bg-[#0E6318] text-white font-bold text-xs uppercase tracking-widest rounded-lg shadow-md shadow-[#148922]/20 transition-all flex items-center gap-2"
-                  >
-                    <Check className="w-4 h-4" />
-                    Phê duyệt
-                  </button>
-                </div>
+        <div className="space-y-6">
+          {pendingRequests.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <AlertCircle className="w-4 h-4 text-[#B45309]" />
+                <h4 className="text-sm font-black text-[#B45309] uppercase tracking-widest">
+                  Chờ duyệt ({pendingRequests.length})
+                </h4>
               </div>
-            );
-          })}
+              <div className="space-y-4">
+                {pendingRequests.map(req => {
+                  const requester = employees.find(e => e.id === req.requestedBy);
+                  const targetEmp = employees.find(e => e.id === req.employeeId);
+                  return (
+                    <div key={req.id} className="bg-white p-4 rounded-xl border border-amber-100 flex items-center justify-between shadow-sm">
+                      <div>
+                        <p className="text-sm font-bold text-gray-900 mb-1">
+                          <span className="text-amber-600">{requester?.name}</span> yêu cầu thêm <span className="text-blue-600">{targetEmp?.name}</span> vào dự án
+                        </p>
+                        <div className="flex gap-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                          <span>Vai trò: {req.role}</span>
+                          <span>Phân bổ: {req.allocation}%</span>
+                          <span>Vào lúc: {new Date(req.createdAt).toLocaleDateString('vi-VN')}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => onReject(req)}
+                          className="px-4 py-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 font-bold text-xs uppercase tracking-widest rounded-lg transition-all"
+                        >
+                          Từ chối
+                        </button>
+                        <button
+                          onClick={() => onApprove(req)}
+                          className="px-4 py-2 bg-[#148922] hover:bg-[#0E6318] text-white font-bold text-xs uppercase tracking-widest rounded-lg shadow-md shadow-[#148922]/20 transition-all flex items-center gap-2"
+                        >
+                          <Check className="w-4 h-4" />
+                          Phê duyệt
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {approvedRequests.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Check className="w-4 h-4 text-[#148922]" />
+                <h4 className="text-sm font-black text-[#148922] uppercase tracking-widest">
+                  Đã duyệt ({approvedRequests.length})
+                </h4>
+              </div>
+              <div className="space-y-4">
+                {approvedRequests.map(req => {
+                  const requester = employees.find(e => e.id === req.requestedBy);
+                  const targetEmp = employees.find(e => e.id === req.employeeId);
+                  return (
+                    <div key={req.id} className="bg-white p-4 rounded-xl border border-emerald-100 flex items-center justify-between shadow-sm">
+                      <div>
+                        <p className="text-sm font-bold text-gray-900 mb-1">
+                          <span className="text-emerald-700">{requester?.name}</span> đã được duyệt thêm <span className="text-emerald-700">{targetEmp?.name}</span>
+                        </p>
+                        <div className="flex gap-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                          <span>Vai trò: {req.role}</span>
+                          <span>Phân bổ: {req.allocation}%</span>
+                          <span>Duyệt lúc: {req.processedAt ? new Date(req.processedAt).toLocaleDateString('vi-VN') : '—'}</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                        Approved
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {rejectedRequests.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <X className="w-4 h-4 text-red-500" />
+                <h4 className="text-sm font-black text-red-500 uppercase tracking-widest">
+                  Bị từ chối ({rejectedRequests.length})
+                </h4>
+              </div>
+              <div className="space-y-4">
+                {rejectedRequests.map(req => {
+                  const requester = employees.find(e => e.id === req.requestedBy);
+                  const targetEmp = employees.find(e => e.id === req.employeeId);
+                  return (
+                    <div key={req.id} className="bg-white p-4 rounded-xl border border-red-100 flex items-center justify-between shadow-sm">
+                      <div>
+                        <p className="text-sm font-bold text-gray-900 mb-1">
+                          <span className="text-red-600">{requester?.name}</span> bị từ chối thêm <span className="text-red-600">{targetEmp?.name}</span>
+                        </p>
+                        <div className="flex gap-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                          <span>Vai trò: {req.role}</span>
+                          <span>Phân bổ: {req.allocation}%</span>
+                          <span>Từ chối lúc: {req.processedAt ? new Date(req.processedAt).toLocaleDateString('vi-VN') : '—'}</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-red-50 text-red-600 border border-red-100">
+                        Rejected
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+};
+
+const SendPersonnelApprovalModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  pendingMembers: ProjectMember[];
+  employees: Employee[];
+  onRemovePendingMember: (memberId: string) => void;
+  onSend: (memberIds: string[]) => void;
+}> = ({ isOpen, onClose, pendingMembers, employees, onRemovePendingMember, onSend }) => {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setSelectedIds(pendingMembers.map((m) => m.id));
+  }, [isOpen, pendingMembers]);
+
+  if (!isOpen) return null;
+
+  const toggle = (memberId: string) => {
+    setSelectedIds((prev) => (prev.includes(memberId) ? prev.filter((id) => id !== memberId) : [...prev, memberId]));
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <motion.div
+        initial={{ scale: 0.98, opacity: 0, y: 18 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.98, opacity: 0, y: 18 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+        className="relative bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden"
+      >
+        <div className="p-8 border-b border-[#E2E8F0] flex items-center justify-between bg-[#F8FAFC]">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[#FEF3C7] rounded-xl">
+              <Send className="w-5 h-5 text-[#B45309]" />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Gửi duyệt nhân sự</h3>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
+                Chọn các nhân sự pending để PM duyệt
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-orange-100 rounded-xl transition-all">
+            <X className="w-5 h-5 text-orange-400" />
+          </button>
+        </div>
+
+        <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+          {pendingMembers.length === 0 ? (
+            <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100">
+              <p className="text-sm font-bold text-amber-800">Không có nhân sự pending để gửi.</p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3">
+                {pendingMembers.map((m) => {
+                  const emp = employees.find((e) => e.id === m.employeeId);
+                  const checked = selectedIds.includes(m.id);
+                  return (
+                    <div
+                      key={m.id}
+                      className={cn(
+                        'bg-white rounded-2xl border p-4 flex items-center justify-between gap-4',
+                        checked ? 'border-[#F59E0B]/50 bg-[#FEF3C7]/30' : 'border-[#E2E8F0] bg-white'
+                      )}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggle(m.id)}
+                          className="w-4 h-4 accent-[#F59E0B]"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-black text-gray-900 truncate">{emp?.name ?? 'Nhân viên'}</p>
+                          <p className="text-xs font-bold text-gray-500 uppercase tracking-widest truncate">
+                            Vai trò: {m.role}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] font-black text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded-lg">
+                          Allocation {m.allocation}%
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onRemovePendingMember(m.id)}
+                          className="p-2 rounded-xl text-orange-500 hover:bg-orange-50 border border-orange-100 transition-all"
+                          title="Xóa khỏi danh sách pending"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="p-8 border-t border-[#E2E8F0] bg-white flex items-center justify-between gap-4">
+          <button
+            onClick={onClose}
+            className="flex-1 py-4 bg-gray-50 text-gray-600 rounded-2xl text-sm font-bold hover:bg-gray-100 transition-all"
+          >
+            Hủy
+          </button>
+          <button
+            onClick={() => onSend(selectedIds)}
+            disabled={selectedIds.length === 0 || pendingMembers.length === 0}
+            className="flex-1 py-4 bg-[#F59E0B] text-white rounded-2xl text-sm font-bold hover:bg-[#D97706] transition-all shadow-lg shadow-[#F59E0B]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Gửi duyệt ({selectedIds.length})
+          </button>
+        </div>
+      </motion.div>
     </div>
   );
 };

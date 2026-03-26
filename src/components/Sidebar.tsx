@@ -49,7 +49,7 @@ export function Sidebar() {
         </div>
         {!collapsed && (
           <div className="ml-3 overflow-hidden">
-            <h1 className="font-bold text-[15px] text-[#1A202C] leading-tight whitespace-nowrap">ECOTECH</h1>
+            <h1 className="font-bold text-[15px] text-[#1A202C] leading-tight whitespace-nowrap">ECOTECH 2A</h1>
             <p className="text-[11px] text-[#718096] whitespace-nowrap">Kiến trúc sư Tài chính</p>
           </div>
         )}

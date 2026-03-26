@@ -66,7 +66,7 @@ export function Topbar() {
           </button>
         )}
       </div>
-
+                                                                 
       <div className="flex items-center gap-2 ml-auto">
         {/* Notifications */}
         <div ref={notifRef} className="relative">
